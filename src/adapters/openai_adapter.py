@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class OpenAIAdapter(LLMAdapter):
     """
     使用新版 openai Python 套件的方式，並指定 model="gpt-4o"。
-    適用於您已配置的 'gpt-4o' 模型或代理 API。
+    適用於已配置的 'gpt-4o' 模型或代理 API。
     """
     def __init__(
         self,
@@ -22,7 +22,7 @@ class OpenAIAdapter(LLMAdapter):
         max_tokens: int = 2048
     ):
         """
-        :param openai_api_key: 您的OpenAI或代理API的金鑰
+        :param openai_api_key: OpenAI或代理API的金鑰
         :param temperature: 生成溫度
         :param max_tokens: 回應最大 token 數
         """

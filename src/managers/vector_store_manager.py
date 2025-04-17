@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 
 class VectorStoreManager:
     """
-    使用 LangChain + Qdrant 來管理向量資料庫，不再回傳相似度，由 LLM 自行評估置信度。
+    使用 LangChain + Qdrant 來管理向量資料庫。
+    重點：search_similar_with_score() 回傳 List[dict], 每個dict包含 doc_id, text, score
     """
     def __init__(
         self,
@@ -25,26 +26,28 @@ class VectorStoreManager:
         self.collection_name = collection_name
         self.qdrant_client = QdrantClient(url=qdrant_url, api_key=api_key)
 
-        # 預先建立(或重建) collection
+        # 先建立(或重建) collection
         self.qdrant_client.recreate_collection(
             collection_name=self.collection_name,
-            vectors_config=models.VectorParams(size=vector_size, distance=models.Distance.COSINE),
+            vectors_config=models.VectorParams(
+                size=vector_size, distance=models.Distance.COSINE
+            ),
         )
 
         # 用於檢索
         self.qdrant_store: Optional[Qdrant] = None
 
     def add_documents(self, domain: str, docs: List[Any], metadata: Dict):
-        logger.debug(f"add_documents called with domain={domain}, doc_count={len(docs)}")
-
+        """
+        以前用在詐騙模式, item = {"code","category","desc"}
+        """
+        logger.debug(f"add_documents domain={domain}, count={len(docs)}")
         doc_list = []
-        for item in docs:
-            # item = {"code":"7-16", "category":"假求職詐騙", "desc":"高薪可預支薪水"}
-            # 組合 page_content: '7-16假求職詐騙:高薪可預支薪水'
+        for idx, item in enumerate(docs):
             label_str = f"{item['code']}{item['category']}:{item['desc']}"
-            
-            merged_meta = dict(metadata)  # 從外部帶入 e.g. {"type":"scam_pattern"}
+            merged_meta = dict(metadata)
             merged_meta["domain"] = domain
+            merged_meta["doc_id"] = item.get("code", f"{domain}-{idx}")
             merged_meta["code"] = item["code"]
             merged_meta["category"] = item["category"]
             merged_meta["desc"] = item["desc"]
@@ -52,63 +55,84 @@ class VectorStoreManager:
             doc_list.append(Document(page_content=label_str, metadata=merged_meta))
 
         if not doc_list:
-            logger.warning("No documents to add.")
             return
 
         if self.qdrant_store is None:
-            logger.debug(f"Creating new Qdrant store with {len(doc_list)} docs (collection={self.collection_name})")
             self.qdrant_store = Qdrant.from_documents(
                 documents=doc_list,
                 embedding=self.embedding_manager.embedding_model,
                 collection_name=self.collection_name
             )
         else:
-            logger.debug(f"Adding {len(doc_list)} docs to existing Qdrant store.")
             self.qdrant_store.add_documents(doc_list)
 
-    def update_document(self, domain: str, doc_id: str, new_content: str):
-        logger.warning("update_document not implemented in PoC Qdrant")
+    def add_jsonl_documents(
+        self,
+        domain: str,
+        json_lines: list[dict],
+        text_key: str,
+        meta_keys: List[str] | None = None
+    ):
+        """
+        將任意 jsonl 帶進 Qdrant.
+        會給每段產生 doc_id, 也可從 item["clause_id"] 來設定 doc_id.
+        """
+        if not json_lines:
+            return
+        docs = []
+        for idx, item in enumerate(json_lines):
+            para = item[text_key]
+            doc_id = item.get("clause_id", f"{domain}-{idx}")
+            meta = {k: item.get(k, "") for k in (meta_keys or [])}
+            meta["domain"] = domain
+            meta["doc_id"] = doc_id
+            docs.append(Document(page_content=para, metadata=meta))
 
-    def remove_document(self, domain: str, doc_id: str):
-        logger.warning("remove_document not implemented in PoC Qdrant")
+        if not docs:
+            return
 
-    def search_similar(
+        if self.qdrant_store is None:
+            self.qdrant_store = Qdrant.from_documents(
+                documents=docs,
+                embedding=self.embedding_manager.embedding_model,
+                collection_name=self.collection_name
+            )
+        else:
+            self.qdrant_store.add_documents(docs)
+
+    def search_similar_with_score(
         self,
         domain: str,
         query_vector: List[float],
         k: int,
-        filters: Dict[str, Any] = None
-    ) -> List[str]:
+        filters: Dict[str, Any] | None = None
+    ) -> List[dict]:
         """
-        回傳 List[str]，只包含文件內容，不再回傳相似度。
-        以 Qdrant similarity_search_by_vector() 為基礎，無法取得實際分數。
+        回傳 List[dict], 每個 dict = {"doc_id":..., "text":..., "score":...}
         """
         if not self.qdrant_store:
             logger.error("Qdrant store not initialized.")
             return []
 
-        logger.debug(f"search_similar called domain={domain}, k={k}, filters={filters}")
-        # 單純呼叫 similarity_search_by_vector
-        found_docs = self.qdrant_store.similarity_search_by_vector(
-            embedding=query_vector, k=k
-        )
-        logger.debug(f"Found {len(found_docs)} docs from similarity_search_by_vector()")
+        hits = self.qdrant_store.similarity_search_with_score_by_vector(
+            embedding=query_vector, k=k, filter=filters or None
+        )  # List[(Document, float)]
 
-        # 過濾 domain & filters
         results = []
-        for idx, doc in enumerate(found_docs):
-            # logging doc metadata
-            logger.debug(f"Doc #{idx} metadata: {doc.metadata}")
+        for doc, score in hits:
             if doc.metadata.get("domain") == domain:
-                if self._match_filters(doc.metadata, filters):
-                    results.append(doc.page_content)
-        logger.info(f"Final doc_count after domain/filters: {len(results)}")
+                doc_id = doc.metadata.get("doc_id", "")
+                results.append({
+                    "doc_id": doc_id,
+                    "text": doc.page_content,
+                    "score": score
+                })
+
         return results
 
-    def _match_filters(self, metadata: Dict[str, Any], filters: Dict[str, Any]) -> bool:
-        if not filters:
-            return True
-        for key, val in filters.items():
-            if metadata.get(key) != val:
-                return False
-        return True
+    # 以下為尚未實作，PoC:
+    def update_document(self, domain: str, doc_id: str, new_content: str):
+        logger.warning("update_document not implemented")
+
+    def remove_document(self, domain: str, doc_id: str):
+        logger.warning("remove_document not implemented")
