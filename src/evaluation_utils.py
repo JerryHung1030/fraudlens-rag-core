@@ -4,8 +4,8 @@ import json
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import ListedColormap, BoundaryNorm
 import os
-from matplotlib.colors import ListedColormap
 
 logger = logging.getLogger(__name__)
 
@@ -124,46 +124,55 @@ def visualize_matrix(
     """
     用 matplotlib 產生彩色格子圖：
       0 = 沒有連結(白)
-      1 = only 外→內(紅)
-      2 = only 內→外(藍)
-      3 = both (紫)
-
-    並且加上明顯的網格線，方便對應.
+      1 = 外->內(Forward)
+      2 = 內->外(Reverse)
+      3 = 外->內 & 內->外(Both)
+    這裡選用同色系麥拉碰，依照深淺區分(白、淺藍、中藍、深藍)。
     """
 
     fig, ax = plt.subplots(figsize=(max(8, len(int_keys) * 0.7), max(6, len(ext_keys) * 0.7)))
 
-    # 自訂 color map
-    cmap = ListedColormap(["white", "lightcoral", "lightblue", "violet"])
-    cax = ax.imshow(matrix, cmap=cmap, aspect="equal", vmin=0, vmax=3)
+    # 自訂 color map (同色系深淺)
+    cmap = ListedColormap(["#FFFFFF", "#dceeff", "#70b6ff", "#005cda"])  # 白, 淺藍, 中藍, 深藍
+    # 設定每個區間的邊界，以對應0,1,2,3
+    bounds = [0, 1, 2, 3, 4]
+    norm = BoundaryNorm(bounds, cmap.N)
 
-    # 設置 ticks
+    # 用 imshow() 繪製矩陣
+    cax = ax.imshow(matrix, cmap=cmap, norm=norm, aspect="equal")
+
+    # 設置 X / Y 軸
     ax.set_xticks(np.arange(len(int_keys)))
     ax.set_yticks(np.arange(len(ext_keys)))
     ax.set_xticklabels(int_keys, rotation=45, ha="right")
     ax.set_yticklabels(ext_keys)
 
-    # 加網格
+    # 加網格線 (僅 minor ticks)
     ax.set_xticks(np.arange(-0.5, len(int_keys), 1), minor=True)
     ax.set_yticks(np.arange(-0.5, len(ext_keys), 1), minor=True)
     ax.grid(which='minor', color='black', linestyle='-', linewidth=0.5)
     ax.tick_params(which="minor", bottom=False, left=False)
 
-    # 填上數字(0,1,2,3 -> 可能可省, or 僅對>0)
+    # 在每個格子中央顯示文字：0=>空白, 1=>F, 2=>R, 3=>FR
+    label_map = {
+        0: "",
+        1: "F",
+        2: "R",
+        3: "FR"
+    }
     for i in range(len(ext_keys)):
         for j in range(len(int_keys)):
             val = matrix[i, j]
-            if val > 0:
-                ax.text(j, i, str(val), ha="center", va="center", color="black")
+            ax.text(j, i, label_map[val], ha="center", va="center", color="black")
 
-    # colorbar
-    cb = fig.colorbar(cax, ax=ax, ticks=[0, 1, 2, 3])
-    cb.set_label("0=none,1=F,2=R,3=F+R")
+    # 設置 colorbar (只顯示4個分段)
+    cb = fig.colorbar(cax, ax=ax, boundaries=bounds, ticks=[0.5, 1.5, 2.5, 3.5])
+    cb.ax.set_yticklabels(["None", "Forward", "Reverse", "Both"])  # 用文字描述
 
-    # Set title
+    # 圖表標題 (可自行調整)
     ax.set_title("External vs Internal Cross Matrix")
 
     plt.tight_layout()
     plt.savefig(out_png, dpi=150)
     logger.info(f"Matrix saved to {out_png}")
-    # plt.show()  # 如需視覺化時可開
+    # plt.show()  # 若需在本地測試視覺化，可把這行取消註解

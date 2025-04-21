@@ -62,13 +62,13 @@ class FraudRAGService(BaseRAGService):
 
         guide = """
         {
-        "code": "7-16",
-        "label": "7-16假求職詐騙:高薪可預支薪水",
-        "evidence": "貼文中的欺詐關鍵字",
-        "confidence": 0.9,
-        "doc_id": "7-16",  
-        "start_idx": 10,
-        "end_idx": 15
+            "code": "7-16",
+            "label": "7-16假求職詐騙:高薪可預支薪水",
+            "evidence": "貼文中的欺詐關鍵字",
+            "confidence": 0.9,
+            "doc_id": "7-16",
+            "start_idx": 10,
+            "end_idx": 15
         }
         """
 
@@ -84,3 +84,22 @@ class FraudRAGService(BaseRAGService):
         if self._hit_blacklist(user_query):
             return '[{"label":"blacklist","evidence":"","confidence":1,"start_idx":-1,"end_idx":-1}]'
         return await super().generate_answer(user_query, filters)
+
+    def post_process(
+        self,
+        user_query: str,
+        raw_json: list[dict],
+        hits: List[dict]
+    ) -> list[dict]:
+        """
+        這裡覆寫父類別的 post_process：
+        若 LLM 忘了回傳 doc_id，就自動用 code 來補上 doc_id，
+        以便後續能對應 hits 拿到正確的 similarity_score。
+        """
+        for rec in raw_json:
+            if "doc_id" not in rec or not rec["doc_id"]:
+                # 若 LLM 沒包含 doc_id，就用 code 代替
+                rec["doc_id"] = rec.get("code", "")
+
+        # 呼叫父類別的 _default_post_process()，插入 similarity_score 等
+        return super().post_process(user_query, raw_json, hits)
