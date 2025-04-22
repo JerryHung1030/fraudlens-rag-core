@@ -9,8 +9,8 @@ from sklearn.metrics import confusion_matrix
 ##############################
 # 1. 讀取資料
 ##############################
-# 假設檔名為 evaluation_result.csv，請依實際檔名調整
-df = pd.read_csv('evaluation_result.csv')
+# 假設檔名為 evaluation_result.xlsx，請依實際檔名調整
+df = pd.read_excel('evaluation_result.xlsx', engine='openpyxl')
 
 
 ##############################

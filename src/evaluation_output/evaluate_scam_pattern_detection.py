@@ -155,12 +155,10 @@ def main():
         final_id_set = parse_codes_or_json(final_raw)
 
         # 2) 用 robust_parse_json + get_id_set_from_json 產生對應的 JSON 供輸出（若是 code list就無法轉出來?）
-        #   - 若需保留 JSON 形態，可再做一次 robust_parse_json
         gpt4o_json_parsed = robust_parse_json(gpt4o_raw)
         final_json_parsed = robust_parse_json(final_raw)
 
         if gpt4o_json_parsed is None:
-            # 代表不是JSON，那就建一個模擬的空list
             gpt4o_json_parsed = []
         if final_json_parsed is None:
             final_json_parsed = []
@@ -173,7 +171,7 @@ def main():
             gpt4o_id_set, final_id_set
         )
 
-        # 4) 在輸出給 CSV 前，對 code 加上 `'` prefix，避免 Excel 誤判日期
+        # 4) 在輸出給 Excel 前，對 code 加上 `'` prefix，避免 Excel 誤判日期
         gpt4o_detected_codes_str = add_single_quote_prefix(gpt4o_id_set)
         final_answer_codes_str = add_single_quote_prefix(final_id_set)
         matched_codes_str = add_single_quote_prefix(matched_ids)
@@ -183,7 +181,6 @@ def main():
         row_dict = {
             'row_id': row_id,
             'user_input': user_input,
-            # 原始內容做備查，如有換行轉成 \n
             'gpt4o_raw_detection': gpt4o_raw.replace('\n', '\\n'),
             'gpt4o_detection_json': gpt4o_json_str,
             'final_answer_json': final_json_str,
@@ -199,7 +196,9 @@ def main():
         output_data.append(row_dict)
 
     evaluated_df = pd.DataFrame(output_data, columns=new_columns)
-    evaluated_df.to_csv('evaluation_result.csv', encoding='utf-8-sig', index=False)
+
+    # 將最終結果輸出為 Excel
+    evaluated_df.to_excel('evaluation_result.xlsx', index=False, engine='openpyxl')
 
 
 if __name__ == '__main__':
