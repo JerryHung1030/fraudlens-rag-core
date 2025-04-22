@@ -3,18 +3,7 @@
     "law_clause_id": "CSMA-1",
     "law_article_no": "1",
     "law_text": "為積極推動國家資通安全政策，加速建構國家資通安全環境，以保障國家安全，維護社會公共利益，特制定本法。",
-    "evidences": [
-      {
-        "doc_id": "CSTI-1-SEC-001-1",
-        "code": "CSTI-1-SEC-001-1",
-        "label": "目的",
-        "evidence": "為保障本會資通之安全、品質、機密性、完整性、可用性與法遵性，特制定本管理規則。本管理規則未規定者，適用本會其他規章之規定。",
-        "confidence": 0.871,
-        "start_idx": -1,
-        "end_idx": -1,
-        "similarity_score": 0.87127674
-      }
-    ]
+    "evidences": []
   },
   {
     "law_clause_id": "CSMA-2",
@@ -35,7 +24,7 @@
         "confidence": 0.882,
         "start_idx": -1,
         "end_idx": -1,
-        "similarity_score": 0.8818046
+        "similarity_score": 0.88163435
       },
       {
         "doc_id": "CSTI-1-SEC-001-1",
@@ -48,14 +37,44 @@
         "similarity_score": 0.8720569
       },
       {
+        "doc_id": "CSTI-1-SEC-001-9",
+        "code": "CSMA-5",
+        "label": "CSTI-1-SEC-001-9: 資通存取控制",
+        "evidence": "本會資通之存取，包括使用者帳號、密碼、權限等，應施以適當的控制；其辦法另定之。",
+        "confidence": 0.871,
+        "start_idx": -1,
+        "end_idx": -1,
+        "similarity_score": 0.87085986
+      },
+      {
+        "doc_id": "CSTI-1-SEC-001-13",
+        "code": "CSMA-7",
+        "label": "CSTI-1-SEC-001-13: 資通相關實體及環境安全管理",
+        "evidence": "本會資通相關實體及環境，應施以安全管理；其辦法另定之。",
+        "confidence": 0.867,
+        "start_idx": -1,
+        "end_idx": -1,
+        "similarity_score": 0.86668974
+      },
+      {
         "doc_id": "CSTI-1-SEC-001-19",
-        "code": "CSMA-4",
+        "code": "CSMA-8",
         "label": "CSTI-1-SEC-001-19: 資通安全管理目標",
         "evidence": "本會為落實資通安全，達到資通安全之目標，每年應訂定年度具體管理目標與其量測方法，經資通安全管理委員會管理審查會議審核通過後施行。",
         "confidence": 0.861,
         "start_idx": -1,
         "end_idx": -1,
         "similarity_score": 0.86124766
+      },
+      {
+        "doc_id": "CSTI-1-SEC-001-15",
+        "code": "CSMA-4",
+        "label": "CSTI-1-SEC-001-15: 資安通報應變及情資分享",
+        "evidence": "本會就資通安全意外事件，應施以適當通報應變，並得依法分享情資；其辦法另定之。",
+        "confidence": 0.846,
+        "start_idx": -1,
+        "end_idx": -1,
+        "similarity_score": 0.846236
       }
     ]
   },
@@ -84,23 +103,23 @@
     "evidences": [
       {
         "doc_id": "CSTI-1-SEC-001-18",
-        "code": "CSMA-1",
+        "code": "CSMA-18",
         "label": "CSTI-1-SEC-001-18: 稽核作業管理",
         "evidence": "本會應就資通安全相關事宜之執行情形辦理稽核作業；其辦法另定之。",
         "confidence": 0.892,
         "start_idx": -1,
         "end_idx": -1,
-        "similarity_score": 0.89197695
+        "similarity_score": 0.8920362
       },
       {
         "doc_id": "CSTI-1-SEC-001-11",
-        "code": "CSMA-2",
+        "code": "CSMA-11",
         "label": "CSTI-1-SEC-001-11: 資通系統分級及資通資產安全管理",
         "evidence": "本會資通資產，應施以安全管理，並就資通系統予以分級；其辦法另定之。",
         "confidence": 0.884,
         "start_idx": -1,
         "end_idx": -1,
-        "similarity_score": 0.88390934
+        "similarity_score": 0.8839997
       }
     ]
   },
@@ -134,7 +153,7 @@
         "confidence": 0.931,
         "start_idx": -1,
         "end_idx": -1,
-        "similarity_score": 0.9307728
+        "similarity_score": 0.93068004
       }
     ]
   },
@@ -169,7 +188,7 @@
         "confidence": 0.911,
         "start_idx": -1,
         "end_idx": -1,
-        "similarity_score": 0.911106
+        "similarity_score": 0.91116726
       }
     ]
   },
@@ -253,17 +272,6 @@
     "law_clause_id": "CSMA-23",
     "law_article_no": "23",
     "law_text": "本法施行日期，由主管機關定之。",
-    "evidences": [
-      {
-        "doc_id": "CSTI-1-SEC-001-22",
-        "code": "施行日",
-        "label": "CSTI-1-SEC-001-22: 施行日",
-        "evidence": "本管理規則自公布次日施行生效；修正時，亦同。本管理規則中華民國113年1月31日公布之修正條文，溯自113年1月1日施行生效。",
-        "confidence": 0.901,
-        "start_idx": -1,
-        "end_idx": -1,
-        "similarity_score": 0.90062857
-      }
-    ]
+    "evidences": []
   }
 ]
