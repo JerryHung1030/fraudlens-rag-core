@@ -1,12 +1,13 @@
 # src/adapters/openai_adapter.py
-import logging
 import asyncio
 from typing import AsyncGenerator
+import time, random
 
 from openai import OpenAI, OpenAIError
 from .base_adapter import LLMAdapter
+from src.utils.log_wrapper import log_wrapper
 
-logger = logging.getLogger(__name__)
+
 
 
 class OpenAIAdapter(LLMAdapter):
@@ -40,18 +41,27 @@ class OpenAIAdapter(LLMAdapter):
         """
         同步 (blocking) 呼叫 gpt-4o API 取得回覆。
         """
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            # 假設 response結構與 openai.ChatCompletion 類似
-            return response.choices[0].message.content.strip()
-        except OpenAIError as e:
-            self.handle_error(e)
-            return "Error in generate_response"
+        max_retry = 3
+        for i in range(max_retry):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens
+                )
+                return response.choices[0].message.content.strip()
+            except OpenAIError as e:
+                self.handle_error(e)
+                if i == max_retry - 1:
+                    return f"Error in generate_response after {max_retry} retries"
+                sleep_sec = 2**i + random.random()
+                log_wrapper.warning(
+                    "OpenAIAdapter",
+                    "generate_response",
+                    f"[Retry {i+1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
+                )
+                time.sleep(sleep_sec)
 
     def stream_response(self, prompt: str):
         """
@@ -59,7 +69,7 @@ class OpenAIAdapter(LLMAdapter):
         """
         try:
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model=self.model_name,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
@@ -104,4 +114,24 @@ class OpenAIAdapter(LLMAdapter):
         錯誤處理: 記錄log, 並可自行擴充其他行為(通知/重試等)。
         """
         super().handle_error(e)
-        logger.error(f"OpenAIAdapter error: {str(e)}")
+        log_wrapper.error(
+            "OpenAIAdapter",
+            "handle_error",
+            f"OpenAIAdapter error: {str(e)}"
+        )
+
+    async def _generate_with_retry(self, prompt: str, max_retry: int = 3) -> str:
+        """重試機制"""
+        for i in range(max_retry):
+            try:
+                return await self._generate(prompt)
+            except Exception as e:
+                if i == max_retry - 1:
+                    raise
+                sleep_sec = (i + 1) * 2
+                log_wrapper.warning(
+                    "OpenAIAdapter",
+                    "_generate_with_retry",
+                    f"[Retry {i+1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
+                )
+                await asyncio.sleep(sleep_sec)

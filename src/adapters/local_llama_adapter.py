@@ -1,10 +1,10 @@
 # src/adapters/local_llama_adapter.py
-import logging
 import asyncio
 from typing import AsyncGenerator
 from .base_adapter import LLMAdapter
+from src.utils.log_wrapper import log_wrapper
 
-logger = logging.getLogger(__name__)
+
 
 
 class LocalLlamaAdapter(LLMAdapter):

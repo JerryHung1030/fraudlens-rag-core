@@ -1,195 +1,352 @@
 # src/main.py
-import asyncio
-import os
-import sys
-from dotenv import load_dotenv
-import logging
-import json
+"""
+主程式入口
 
-# 確保可以 import 同層或上層資料夾的模組
+‣ 依 .env 與情境設定檔 (scenario.yml) 來：
+    1. 初始化 Embedding / VectorIndex / LLM
+    2. 載入 **階層式 JSON** reference 與 input
+    3. flatten → ingest → 逐筆 RAG 產生結果
+    4. 依需求輸出 direction / rag_k / cof_threshold … 等欄位之 JSON
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import pathlib
+import sys
+from typing import Any, Dict, List
+from datetime import datetime
+
+import argparse
+import yaml
+from dotenv import load_dotenv
+from qdrant_client import QdrantClient
+import re
+
+# --- 專案內部 import ----------------------------------------------------------
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-# 以下為原先 managers / adapters / services import
-from managers.embedding_manager import EmbeddingManager
-from managers.vector_store_manager import VectorStoreManager
-from managers.llm_manager import LLMManager
-from managers.blacklist_manager import BlacklistManager
-from managers.regulations_manager import RegulationsManager
+# --- 新/修正 import ---
+from services.rag_engine import RAGEngine
+from services.scenario import Scenario
 
+from managers.embedding_manager import EmbeddingManager
+from managers.data_structure_checker import DataStructureChecker
+from managers.vector_index import VectorIndex
+from managers.llm_manager import LLMManager
 from adapters.openai_adapter import OpenAIAdapter
 from adapters.local_llama_adapter import LocalLlamaAdapter
+from utils.text_preprocessor import TextPreprocessor
+from src.utils.log_wrapper import log_wrapper
 
-from services.fraud_rag_service import FraudRAGService
-from services.compliance_rag_service import ComplianceRAGService, LawComplianceService
-from evaluation_utils import save_results_to_json, build_matrix, visualize_matrix
-
-# 載入 .env
 load_dotenv(override=True)
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-
-def setup_managers():
-    """根據 .env 配置，初始化所有核心 manager。"""
-
-    # 1) 從 .env 讀取環境變數
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    qdrant_url = os.getenv("QDRANT_URL")
-    qdrant_collection = os.getenv("QDRANT_COLLECTION")
-    embedding_model_name = os.getenv("EMBED_MODEL")
-
-    # 2) 建立 EmbeddingManager
-    embedding_manager = EmbeddingManager(
-        openai_api_key=openai_api_key,
-        embedding_model_name=embedding_model_name
-    )
-
-    # 3) 建立 VectorStoreManager (Qdrant)
-    vector_store_manager = VectorStoreManager(
-        embedding_manager=embedding_manager,
-        qdrant_url=qdrant_url,
-        collection_name=qdrant_collection
-    )
-
-    # 4) 建立 LLMManager，並註冊多個 LLM Adapter
-    llm_manager = LLMManager()
-
-    openai_adapter = OpenAIAdapter(
-        openai_api_key=openai_api_key,
-        temperature=0.0,
-        max_tokens=1024
-    )
-
-    local_llama_adapter = LocalLlamaAdapter(
-        model_path="models/llama.bin",
-        temperature=0.0,
-        max_tokens=2048
-    )
-
-    llm_manager.register_adapter("openai", openai_adapter)
-    llm_manager.register_adapter("llama", local_llama_adapter)
-    llm_manager.set_default_adapter("openai")
-
-    # 4) 其他
-    blacklist_manager = BlacklistManager(blacklist_db=["badurl.com", "lineid123"])
-    regulations_manager = RegulationsManager(regulations_db={"some_law": "Lorem ipsum..."})
-
-    return embedding_manager, vector_store_manager, llm_manager, blacklist_manager, regulations_manager
-
-
-def load_jsonl_file(path: str):
-    """小幫手：讀取 JSON lines 檔並回傳 list[dict]."""
-    if not path or not os.path.exists(path):
-        logger.warning(f"File not found: {path}")
-        return []
-    all_data = []
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            all_data.append(json.loads(line))
-    return all_data
-
-
-async def main():
-    # 初始化 Managers
-    embedding_manager, vector_store_manager, llm_manager, blacklist_manager, regulations_manager = setup_managers()
-
-    # 1) 讀取詐騙檔 (mock)
-    scam_file = os.getenv("SCAM_PATTERNS_FILE")
-    scam_patterns = load_jsonl_file(scam_file)
-
-    # 把詐騙patterns 加入 domain="FRAUD" 的向量庫
-    vector_store_manager.add_documents(
-        domain="FRAUD",
-        docs=scam_patterns,
-        metadata={"type": "scam_pattern"}
-    )
-
-    # 建立 FraudRAGService
-    fraud_service = FraudRAGService(
-        embedding_manager=embedding_manager,
-        vector_store_manager=vector_store_manager,
-        llm_manager=llm_manager,
-        blacklist_manager=blacklist_manager,
-        domain_key="FRAUD",
-        selected_llm_name="openai"
-    )
-
-    # 2) 測試詐騙
-    # user_input_fraud = "這裡有免錢的投資秘笈，而且加Line就能獲得！ lineid123"
-    # user_input_fraud = "我於114年04月14日凌晨02時30分在住家瀏覽FACEBOOK社群網路平臺其中社團【嘉義市租屋網】貼文者【鐘仲妍、臉書ID：100086865836189】刊登【租屋廣告】貼文，我遂加入假廣告貼文所提供之聯繫方式【LINE ID：hhh88338】聯繫，俟我上鉤後，對方便要求先預付兩個月訂金才能保留物件並帶看屋況，我遂匯款【14000元】至【對方帳戶:帳戶號碼】，後續對方告知該址已經租出去，然後要退款給我，我提供帳戶給對方進行匯款，但遲遲未見對方匯回，於是我向對方提問，對方即佯稱應該其帳戶出問題，因此又提供我另一line帳號鏈結供我加入詢問，我加入後該line顯示【中 國 信 託】，隨後【中 國 信 託】用line來電，告知我當初匯款的帳戶為問題帳戶，需要透過相關操作才"
-    user_input_fraud = "我於114年01月(時間不確定)，不明原因於LINE軟體加入「淑瑤交流技術學院」群組，並在其中認識匿名「林淑瑤」之詐騙嫌疑人，「林淑瑤」以投資股票為由，假借「保勝投資股份有限公司」名義，邀請我投資股票，使用假APP及高獲利方式，使我於114年03月31日17時43分，於我，以新臺幣300000元，與面交車手面交。隨後欲出金卻出不了金，於114年04月15日13時20分，至京城銀行中埔分行(嘉義縣中埔鄉和睦村中山路五段867)，詢問有無資金入帳，經行員面談後，才知悉被詐騙，故至本所報案。"
-    # user_input_fraud = "我報稱於114年04月13日下午14時許，我接獲來電(來電號碼已不清楚)，犯嫌以猜猜我是誰方式向我搭話，隨後犯嫌謊稱為我友人「清月」，稱手機掉進水裡無法使用，要求我加入Line暱稱【幸福】之帳號。犯嫌於114年04月14日向我謊稱，渠急需借用15萬元周轉，我不疑有他，於同日10時59分至土地銀行民雄分行臨櫃匯款新臺幣15萬元至對方提供之帳號，直至114年04月15日早上接到真實友人來電查證後，才得知遭詐。"
-    result_fraud = await fraud_service.generate_answer(user_input_fraud)
-    print("=== Fraud check result ===\n", result_fraud)
-
-    # 3) 讀取外部法規與公司內部規範
-    external_law_file = os.getenv("EXTERNAL_LAW_FILE")
-    internal_policy_file = os.getenv("INTERNAL_POLICY_FILE")
-
-    external_law_data = load_jsonl_file(external_law_file)     # 外部法規
-    internal_policy_data = load_jsonl_file(internal_policy_file)  # 內部規範
-
-    # 4) 新增「外部法規」與「內部規定」到 domain="COMPLIANCE"
-    #    差別在 metadata["source"] 設成 "external" 或 "internal"
-    #    利用 vector_store_manager.add_jsonl_documents(...) 方便把多欄位存進 metadata
-    if external_law_data:
-        for item in external_law_data:
-            item["source"] = "external"   # 以source區分
-        vector_store_manager.add_jsonl_documents(
-            domain="COMPLIANCE",
-            json_lines=external_law_data,
-            text_key="text",
-            meta_keys=["source", "doc_name", "chapter_no", "chapter_name", "article_no", "effective_date", "clause_id"]
+# ═════════════════════════════════════════════════════════════════════════════
+#  Helper
+# ═════════════════════════════════════════════════════════════════════════════
+def load_json_file(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        log_wrapper.error(
+            "main",
+            "load_json_file",
+            f"JSON file {path} not found!"
         )
-    if internal_policy_data:
-        for item in internal_policy_data:
-            item["source"] = "internal"
-        vector_store_manager.add_jsonl_documents(
-            domain="COMPLIANCE",
-            json_lines=internal_policy_data,
-            text_key="text",
-            meta_keys=["source", "doc_name", "chapter_no", "chapter_name", "article_no", "effective_date", "clause_id"]
+        raise
+    except json.JSONDecodeError as e:
+        log_wrapper.error(
+            "main",
+            "load_json_file",
+            f"JSON decode error in {path}: {e}"
+        )
+        raise
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  初始化核心元件
+# ═════════════════════════════════════════════════════════════════════════════
+def setup_core() -> tuple[EmbeddingManager, VectorIndex, LLMManager]:
+    """
+    初始化 EmbeddingManager / VectorIndex / LLMManager
+    """
+    openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+    vector_size = 1536
+    embed_model_name = os.getenv("EMBED_MODEL", "text-embedding-ada-002")
+
+    # Embedding
+    embed_mgr = EmbeddingManager(
+        openai_api_key=openai_api_key,
+        embedding_model_name=embed_model_name
+    )
+    
+    # Data schema checker
+    checker = DataStructureChecker()
+
+    # Qdrant client
+    qdrant = QdrantClient(url=qdrant_url)
+
+    # VectorIndex
+    vec_index = VectorIndex(
+        embedding_manager=embed_mgr,
+        data_checker=checker,
+        qdrant_client=qdrant,
+        default_collection_name=os.getenv("QDRANT_COLLECTION", "my_rag_collection"),
+        vector_size=vector_size,
+    )
+
+    # LLM
+    llm_mgr = LLMManager()
+    llm_mgr.register_adapter(
+        "openai",
+        OpenAIAdapter(openai_api_key=openai_api_key, temperature=0.0, max_tokens=2048),
+    )
+    llm_mgr.register_adapter(
+        "llama",
+        LocalLlamaAdapter(model_path="models/llama.bin", temperature=0.0, max_tokens=2048),
+    )
+    llm_mgr.set_default_adapter("openai")
+
+    return embed_mgr, vec_index, llm_mgr
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  主流程
+# ═════════════════════════════════════════════════════════════════════════════
+async def main() -> None:
+    # ---------- 1. 初始化 ----------
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run-id",
+        type=str,
+        default="",
+        help="append to collection name for isolation",
+        metavar="RUN_ID",
+        # 限制 run-id 格式：1-32 字元，只允許英數字、底線、連字符
+        choices=[x for x in [""] + [f"run_{i}" for i in range(1, 33)] if re.fullmatch(r"[A-Za-z0-9_\-]{1,32}", x)]
+    )
+    args = parser.parse_args()
+
+
+    embedding_mgr, vector_index, llm_mgr = setup_core()
+
+    # ---------- 2. 載入 scenario 設定 ----------
+    scenario_path = os.getenv("SCENARIO_FILE", "scenario.yml")
+    if not pathlib.Path(scenario_path).exists():
+        # 若找不到，用最小可執行預設
+        default_scenario = {
+            "role_desc": "你是 RAG 比對助手",
+            "reference_desc": "以下為待比對參考資料",
+            "input_desc": "以下為使用者輸入",
+            "direction": "forward",
+            "rag_k": 5,
+            "cof_threshold": 0.5,
+            "reference_depth": 2,
+            "input_depth": 1,
+        }
+        with open(scenario_path, "w", encoding="utf-8") as fp:
+            yaml.safe_dump(default_scenario, fp, allow_unicode=True)
+        log_wrapper.info(
+            "main",
+            "create_default_scenario",
+            f"Default scenario.yml 已建立，路徑: {scenario_path}"
         )
 
-    # 5) 建立 ComplianceRAGService + LawComplianceService
-    compliance_service = ComplianceRAGService(
-        embedding_manager=embedding_manager,
-        vector_store_manager=vector_store_manager,
-        llm_manager=llm_manager,
-        regulations_manager=regulations_manager,
-        domain_key="COMPLIANCE",
-        selected_llm_name="openai"
+    scenario_cfg: Dict[str, Any] = yaml.safe_load(open(scenario_path, "r", encoding="utf-8"))
+    scenario = Scenario(**scenario_cfg)  # pydantic 物件
+
+    # ---------- 3. 載入 reference / input JSON ----------
+    ref_path = scenario_cfg.get("reference_json") or os.getenv("REFERENCE_JSON")
+    inp_path = scenario_cfg.get("input_json") or os.getenv("INPUT_JSON")
+
+    if not ref_path or not inp_path:
+        log_wrapper.error(
+            "main",
+            "main",
+            "reference_json 或 input_json 路徑未設定，請於 scenario.yml 或環境變數提供"
+        )
+        return
+
+    ref_raw = load_json_file(ref_path)
+    inp_raw = load_json_file(inp_path)
+
+    # ---------- 4. 檢查 & flatten ----------
+    checker = DataStructureChecker()
+    try:
+        checker.validate(ref_raw, mode="reference")
+        checker.validate(inp_raw, mode="input")
+    except Exception as e:
+        log_wrapper.error(
+            "main",
+            "main",
+            f"資料結構驗證失敗：{e}"
+        )
+        return
+
+    ref_depth = scenario.reference_depth
+    inp_depth = scenario.input_depth
+
+    ref_docs = TextPreprocessor.flatten_levels(ref_raw, ref_depth, side="reference")
+    inp_docs = TextPreprocessor.flatten_levels(inp_raw, inp_depth, side="input")
+
+    # chunk
+    if scenario.chunk_size > 0:
+        chunk_size = scenario.chunk_size
+
+        # chunk reference
+        new_ref_docs: List[Dict[str, Any]] = []
+        for d in ref_docs:
+            for i, c in enumerate(TextPreprocessor.chunk_text(d["text"], chunk_size)):
+                cuid = f"{d['group_uid']}_c{i}"
+                new_ref_docs.append({
+                    "orig_sid": d["orig_sid"],
+                    "group_uid": d["group_uid"],
+                    "uid": cuid,
+                    "sid": cuid,  # 保險
+                    "text": c,
+                })
+        ref_docs = new_ref_docs
+
+        # chunk input
+        new_inp_docs: List[Dict[str, Any]] = []
+        for d in inp_docs:
+            for i, c in enumerate(TextPreprocessor.chunk_text(d["text"], chunk_size)):
+                cuid = f"{d['group_uid']}_c{i}"
+                new_inp_docs.append({
+                    "orig_sid": d["orig_sid"],
+                    "group_uid": d["group_uid"],
+                    "uid": cuid,
+                    "sid": cuid,  # 保險
+                    "text": c,
+                })
+        inp_docs = new_inp_docs
+
+    direction = scenario.direction.lower()
+
+    # ---------- 5. Ingest ----------
+    base_collection = os.getenv("QDRANT_COLLECTION", "my_rag_collection")
+    collection = base_collection
+    if args.run_id:
+        collection += f"_{args.run_id}"
+
+    if direction == "both":
+        vector_index.ingest_json(collection, ref_docs, mode="reference")
+        vector_index.ingest_json(collection, inp_docs, mode="input")
+    elif direction == "forward":
+        vector_index.ingest_json(collection, ref_docs, mode="reference")
+    elif direction == "reverse":
+        vector_index.ingest_json(collection, inp_docs, mode="input")
+
+    # ---------- 6. 準備 RAGEngine ----------
+    rag_engine = RAGEngine(embedding_mgr, vector_index, llm_mgr)
+
+    # ---------- 7. 執行 RAG ----------
+    results: List[Dict[str, Any]] = []
+
+    if direction == "forward":
+        sem = asyncio.Semaphore(3)  # 可調整
+        error_handler = lambda e: log_wrapper.error(
+            "main",
+            "main",
+            f"Task failed: {str(e)}"
+        )
+        async def _handle_doc(doc):
+            async with sem:
+                idx_info = {
+                    "collection_name": collection,
+                    "filters": {"side": "reference"},
+                    "rag_k": scenario.rag_k_forward or scenario.rag_k,
+                }
+                return await rag_engine.generate_answer(
+                    user_query=doc["text"],
+                    root_uid=doc["group_uid"],
+                    scenario=scenario,
+                    index_info=idx_info
+                )
+
+        # 建立所有任務
+        tasks = [_handle_doc(d) for d in inp_docs]
+        # gather
+        partial_results = await asyncio.gather(*tasks)
+        for pres in partial_results:
+            if pres:  # 確保 pres 不為空
+                results.extend(pres)
+
+    elif direction == "reverse":
+        # reference -> input
+        for doc in ref_docs:
+            index_info = {
+                "collection_name": collection,
+                "filters": {"side": "input"},
+                "rag_k": scenario.rag_k_reverse or scenario.rag_k
+            }
+            partial_res = await rag_engine.generate_answer(
+                user_query=doc["text"], 
+                root_uid=doc["group_uid"], 
+                scenario=scenario, 
+                index_info=index_info
+            )
+            if partial_res:  # 確保 partial_res 不為空
+                results.extend(partial_res)
+
+    elif direction == "both":
+        # 可自定義 forward / reverse 皆執行一次
+        # 下列為示範
+        # 1) forward
+        for doc in inp_docs:
+            index_info = {
+                "collection_name": collection,
+                "filters": {"side": "reference"},
+                "rag_k": scenario.rag_k_forward or scenario.rag_k
+            }
+            forward_res = await rag_engine.generate_answer(
+                user_query=doc["text"], 
+                root_uid=doc["group_uid"], 
+                scenario=scenario, 
+                index_info=index_info
+            )
+            if forward_res:  # 確保 forward_res 不為空
+                results.extend(forward_res)
+
+        # 2) reverse
+        for doc in ref_docs:
+            index_info = {
+                "collection_name": collection,
+                "filters": {"side": "input"},
+                "rag_k": scenario.rag_k_reverse or scenario.rag_k
+            }
+            rev_res = await rag_engine.generate_answer(
+                user_query=doc["text"],
+                root_uid=doc["group_uid"],
+                scenario=scenario,
+                index_info=index_info
+            )
+            if rev_res:  # 確保 rev_res 不為空
+                results.extend(rev_res)
+
+    else:
+        log_wrapper.warning(
+            "main",
+            "main",
+            "Unknown direction, skip RAG."
+        )
+        return
+
+    # ---------- 8. 輸出 ----------
+    out_path = scenario_cfg.get("output_json", "rag_result.json")
+    with open(out_path, "w", encoding="utf-8") as fp:
+        json.dump(results, fp, ensure_ascii=False, indent=2)
+    log_wrapper.info(
+        "main",
+        "main",
+        f"RAG 結果已寫入 {out_path}，共 {len(results)} 筆"
     )
-    law_service = LawComplianceService(compliance_rag=compliance_service)
 
-    # --- 6) 測試「外部法規 -> 內部規範」對照 ---
-    if external_law_data:
-        # 先示範只拿前幾條做測試 (減少Token消耗)
-        # test_external = external_law_data[:3]
-        test_external = external_law_data
-        forward_results = await law_service.audit(test_external)
-
-        print("\n=== Forward RAG (external -> internal) 結果 ===")
-        print(json.dumps(forward_results, ensure_ascii=False, indent=2))
-
-    # --- (可選) 測試「內部規範 -> 外部法規」對照 ---
-    if internal_policy_data:
-        test_internal = internal_policy_data
-        reverse_results = await law_service.audit_reverse(test_internal)
-        print("\n=== Reverse RAG (internal -> external) 結果 ===")
-        print(json.dumps(reverse_results, ensure_ascii=False, indent=2))
-
-    # 存檔
-    save_results_to_json(forward_results, reverse_results)
-
-    # 建立matrix + 繪圖
-    matrix, ext_keys, int_keys = build_matrix(forward_results, reverse_results)
-    visualize_matrix(matrix, ext_keys, int_keys, out_png=os.getenv("EVALUATION_IMAGE"))
 
 if __name__ == "__main__":
     asyncio.run(main())

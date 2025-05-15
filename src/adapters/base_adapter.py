@@ -1,8 +1,8 @@
 # src/adapters/base_adapter.py
-import logging
 from typing import AsyncGenerator
+from src.utils.log_wrapper import log_wrapper
 
-logger = logging.getLogger(__name__)
+
 
 
 class LLMAdapter:
@@ -30,6 +30,20 @@ class LLMAdapter:
 
     def handle_error(self, e: Exception) -> None:
         """錯誤處理機制，可自訂 Log/通知/回傳訊息等"""
-        logger.error(f"LLMAdapter Error: {str(e)}")
-        # 依需求可選擇回傳或 raise
-        # raise e
+        log_wrapper.error(
+            "BaseAdapter",
+            "handle_error",
+            f"LLMAdapter Error: {str(e)}"
+        )
+
+    def generate_response_sync(self, prompt: str) -> str:
+        """同步生成結果，帶有錯誤處理"""
+        try:
+            return self.generate_response(prompt)
+        except Exception as e:
+            log_wrapper.error(
+                "BaseAdapter",
+                "generate_response_sync",
+                f"LLMAdapter Error: {str(e)}"
+            )
+            raise

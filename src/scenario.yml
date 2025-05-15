@@ -1,0 +1,20 @@
+# 使用者可依情境自行修改
+role_desc: "你是防詐騙與合規比對助手"
+reference_desc: "Reference 為防詐騙樣式或外部法規"
+input_desc: "Input 為使用者貼文或公司內規條文"
+scoring_rule: |
+  **信心分數(confidence) 評分建議**
+  • 0.9–1.0 → 幾乎可確定兩者高度相關
+  • 0.7–0.89 → 強相關，但可能缺少部分關鍵字
+  • 0.6–0.69 → 中度相關，可作為備查
+  • < 0.6   → 視為不相關，請不要輸出
+direction: "reverse"        # forward / reverse
+rag_k_forward: 5            # 貼文 → 標籤，通常貼文很多，K 可小
+rag_k_reverse: 20           # 標籤 → 貼文，可放大一點
+cof_threshold: 0.6
+reference_depth: 1          # flatten 展開層級
+input_depth: 1
+chunk_size: 0               # 文字過長可設定 >0 進行 chunk
+reference_json: "/home/jerryhung/scamshield-ai/mock_data2/scam_references.json"
+input_json: "/home/jerryhung/scamshield-ai/mock_data2/scam_input.json"
+output_json: "./rag_result.json"
