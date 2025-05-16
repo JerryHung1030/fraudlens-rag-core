@@ -1,6 +1,6 @@
 # src/managers/llm_manager.py
 from typing import Dict
-from adapters.base_adapter import LLMAdapter
+from rag_core.infrastructure.llm.base_adapter import LLMAdapter
 
 
 class LLMManager:

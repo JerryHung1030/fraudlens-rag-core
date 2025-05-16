@@ -1,0 +1,49 @@
+# 基礎設定檔 - 所有環境共用
+system:
+  is_debug: true  # 開發時開啟 debug 模式
+  log_dir: logs
+  log_file_path: app.log
+  error_log_file_path: error.log
+
+api_keys:
+  openai: ${OPENAI_API_KEY}  # 從環境變數讀取
+  # 可以加入其他 API keys
+
+llm:
+  model: gpt-4o
+  temperature: 0.7  # 開發時提高創造性
+  max_tokens: 4096  # 開發時增加 token 限制
+  max_prompt_tokens: 8000
+
+vector_db:
+  url: http://localhost:6333
+  collection: dev_rag_collection  # 開發用集合
+  vector_size: 1536
+
+thread_pool:
+  vector_pool: 4  # 開發時減少執行緒數
+  embed_pool: 4
+
+embedding:
+  model: text-embedding-ada-002
+
+scenario:
+  role_desc: "你是防詐騙與合規比對助手"
+  reference_desc: "Reference 為防詐騙樣式或外部法規"
+  input_desc: "Input 為使用者貼文或公司內規條文"
+  direction: "reverse"
+  rag_k_forward: 5
+  rag_k_reverse: 20
+  cof_threshold: 0.6
+  reference_depth: 1
+  input_depth: 1
+  chunk_size: 0
+  scoring_rule: |
+    **信心分數(confidence) 評分建議**
+    • 0.9–1.0 → 幾乎可確定兩者高度相關
+    • 0.7–0.89 → 強相關，但可能缺少部分關鍵字
+    • 0.6–0.69 → 中度相關，可作為備查
+    • < 0.6   → 視為不相關，請不要輸出
+  reference_json: "src/data/scam_references.json"
+  input_json: "src/data/scam_input.json"
+  output_json: "src/interfaces/output/rag_result.json" 

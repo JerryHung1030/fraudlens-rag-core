@@ -1,21 +1,20 @@
 import os
 from loguru import logger
-from src.utils import property_helper
+from config.settings import config_manager
 
 
 class log_wrapper:
     """
     Log Wrapper : 設定 loguru 的 logger，並提供呼叫介面
     """
-    if str(property_helper.get_property('LOG_INFO', 'IS_DEBUG')).upper() == 'TRUE':
-        IS_DEBUG = True
-    else:
-        IS_DEBUG = False
+    # 從設定管理器取得設定
+    settings = config_manager.settings.system
+    IS_DEBUG = settings.is_debug
 
-    tmp_list = str(property_helper.get_property('LOG_INFO', 'LOG_DIR')).split('/')
-    log_dir = os.sep.join(tmp_list[:])  # e.g. "app/logs"
-    LOG_FILE_PATH = log_dir + os.sep + str(property_helper.get_property('LOG_INFO', 'LOG_FILE_PATH'))
-    ERROR_LOG_FILE_PATH = log_dir + os.sep + str(property_helper.get_property('LOG_INFO', 'ERROR_LOG_FILE_PATH'))
+    # 設定日誌路徑
+    log_dir = os.sep.join(settings.log_dir.split('/'))
+    LOG_FILE_PATH = os.path.join(log_dir, settings.log_file_path)
+    ERROR_LOG_FILE_PATH = os.path.join(log_dir, settings.error_log_file_path)
 
     # 建立目錄
     if not os.path.exists(log_dir):
@@ -76,6 +75,7 @@ class log_wrapper:
     def debug(cls, module_name, func_name, msg):
         if cls.IS_DEBUG:
             logger.debug(cls.compose_msg(module_name, func_name, msg))
+
 
 # 創建一個單例實例
 log_wrapper = log_wrapper()

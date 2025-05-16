@@ -3,16 +3,17 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List
 
-from services.scenario import Scenario
-from services.prompt_builder import PromptBuilder
-from services.result_formatter import ResultFormatter
-from services.errors import (
+from rag_core.domain.scenario import Scenario
+from rag_core.application.prompt_builder import PromptBuilder
+from rag_core.application.result_formatter import ResultFormatter
+from rag_core.exceptions import (
     PromptTooLongError,
     EmbeddingError,
     VectorSearchError,
     LLMError
 )
-from src.utils.log_wrapper import log_wrapper
+from utils import log_wrapper
+
 
 class RAGEngine:
     """

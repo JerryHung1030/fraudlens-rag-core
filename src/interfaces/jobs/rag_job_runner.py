@@ -1,16 +1,13 @@
 # src/rag_job_runner.py
-
-import asyncio
 import json
 import requests
-from services.scenario import Scenario
+from rag_core.domain.scenario import Scenario
 from typing import Dict, Any, List
 
-from managers.vector_index import VectorIndex
-from services.rag_engine import RAGEngine
-from utils.text_preprocessor import TextPreprocessor
-from src.utils.log_wrapper import log_wrapper
-
+from rag_core.infrastructure.vector_store import VectorIndex
+from rag_core.application.rag_engine import RAGEngine
+from rag_core.utils.text_preprocessor import TextPreprocessor
+from utils import log_wrapper
 
 
 class RAGJobRunner:
@@ -133,8 +130,9 @@ def _load_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as fp:
         return json.load(fp)
 
+
 def _chunk_docs(docs: List[Dict[str, Any]], chunk_size: int) -> List[Dict[str, Any]]:
-    from utils.text_preprocessor import TextPreprocessor
+    from rag_core.utils.text_preprocessor import TextPreprocessor
     new_docs = []
     for d in docs:
         # d 含 { "orig_sid", "group_uid", "uid", "text" }
@@ -144,10 +142,10 @@ def _chunk_docs(docs: List[Dict[str, Any]], chunk_size: int) -> List[Dict[str, A
             chunk_uid = f"{d['group_uid']}_c{i}"
 
             new_docs.append({
-                "orig_sid":  d["orig_sid"],
+                "orig_sid": d["orig_sid"],
                 "group_uid": d["group_uid"],
-                "uid":       chunk_uid,     # 這就是 Qdrant 的 point.id
-                "text":      c,
+                "uid": chunk_uid,     # 這就是 Qdrant 的 point.id
+                "text": c,
                 "sid": chunk_uid
             })
     return new_docs

@@ -3,9 +3,10 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
-from config.settings import settings
-from src.utils.log_wrapper import log_wrapper
+from utils import log_wrapper
 from langchain_openai import OpenAIEmbeddings
+from config.settings import config_manager
+
 
 class EmbeddingManager:
     """
@@ -21,15 +22,16 @@ class EmbeddingManager:
         :param openai_api_key: OpenAI API 金鑰，若未提供則使用設定檔中的值
         :param embedding_model_name: 嵌入模型名稱，若未提供則使用設定檔中的值
         """
-        self.openai_api_key = openai_api_key or settings.OPENAI_API_KEY
-        self.embedding_model_name = embedding_model_name or settings.EMBED_MODEL
+        settings = config_manager.settings
+        self.openai_api_key = openai_api_key or settings.openai_api_key
+        self.embedding_model_name = embedding_model_name or settings.embedding.model
 
         # 如果想用其他embedding,可在此切換
         self.embedding_model = OpenAIEmbeddings(
             model=self.embedding_model_name,
             openai_api_key=self.openai_api_key
         )
-        self._executor = ThreadPoolExecutor(max_workers=settings.EMBED_POOL)
+        self._executor = ThreadPoolExecutor(max_workers=settings.thread_pool.embed_pool)
 
     def generate_embedding(self, text: str) -> List[float]:
         """

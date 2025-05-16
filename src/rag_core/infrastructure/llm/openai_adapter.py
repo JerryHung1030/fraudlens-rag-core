@@ -1,13 +1,12 @@
 # src/adapters/openai_adapter.py
 import asyncio
 from typing import AsyncGenerator
-import time, random
+import time
+import random
 
 from openai import OpenAI, OpenAIError
 from .base_adapter import LLMAdapter
-from src.utils.log_wrapper import log_wrapper
-
-
+from utils import log_wrapper
 
 
 class OpenAIAdapter(LLMAdapter):
@@ -59,7 +58,7 @@ class OpenAIAdapter(LLMAdapter):
                 log_wrapper.warning(
                     "OpenAIAdapter",
                     "generate_response",
-                    f"[Retry {i+1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
+                    f"[Retry {i + 1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
                 )
                 time.sleep(sleep_sec)
 
@@ -125,13 +124,13 @@ class OpenAIAdapter(LLMAdapter):
         for i in range(max_retry):
             try:
                 return await self._generate(prompt)
-            except Exception as e:
+            except Exception:
                 if i == max_retry - 1:
                     raise
                 sleep_sec = (i + 1) * 2
                 log_wrapper.warning(
                     "OpenAIAdapter",
                     "_generate_with_retry",
-                    f"[Retry {i+1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
+                    f"[Retry {i + 1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
                 )
                 await asyncio.sleep(sleep_sec)

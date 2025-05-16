@@ -1,7 +1,5 @@
-from src.utils.log_wrapper import log_wrapper
+from utils import log_wrapper
 from typing import Any, Dict, List
-
-
 
 
 class DataSchemaError(Exception):

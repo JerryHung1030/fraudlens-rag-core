@@ -1,17 +1,16 @@
 from typing import Dict, Any, List, Optional
 import asyncio
-import os
 from concurrent.futures import ThreadPoolExecutor
 import uuid
 
 from qdrant_client import QdrantClient, models
 from qdrant_client.models import PointStruct, FieldCondition, MatchValue
 
-from .data_structure_checker import DataStructureChecker
-from .embedding_manager import EmbeddingManager
-from config.settings import settings
-from src.utils.log_wrapper import log_wrapper
+from rag_core.domain.schema_checker import DataStructureChecker
+from rag_core.infrastructure.embedding import EmbeddingManager
 
+from utils import log_wrapper
+from config.settings import config_manager
 
 
 class VectorIndex:
@@ -20,7 +19,7 @@ class VectorIndex:
     支援 Qdrant 作為後端。
     """
     # 全域共享一個 thread‐pool，避免大量併發將預設 executor 用完
-    _executor = ThreadPoolExecutor(max_workers=settings.VECTOR_POOL)
+    _executor = ThreadPoolExecutor(max_workers=config_manager.settings.thread_pool.vector_pool)
     
     def __init__(
         self,
@@ -28,13 +27,14 @@ class VectorIndex:
         data_checker: DataStructureChecker,
         qdrant_client: QdrantClient,
         default_collection_name: str = None,
-        vector_size: int = 1536
+        vector_size: int = None
     ):
         self.embedding_manager = embedding_manager
         self.data_checker = data_checker
         self.qdrant_client = qdrant_client
-        self.default_collection_name = default_collection_name or settings.QDRANT_COLLECTION
-        self.vector_size = vector_size
+        settings = config_manager.settings.vector_db
+        self.default_collection_name = default_collection_name or settings.collection
+        self.vector_size = vector_size or settings.vector_size
 
         # Ensure default collection exists
         self._ensure_collection(self.default_collection_name)

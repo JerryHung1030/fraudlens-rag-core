@@ -1,8 +1,6 @@
 # src/adapters/base_adapter.py
 from typing import AsyncGenerator
-from src.utils.log_wrapper import log_wrapper
-
-
+from utils import log_wrapper
 
 
 class LLMAdapter:

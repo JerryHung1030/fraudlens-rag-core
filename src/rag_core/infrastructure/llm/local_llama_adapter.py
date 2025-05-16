@@ -2,9 +2,6 @@
 import asyncio
 from typing import AsyncGenerator
 from .base_adapter import LLMAdapter
-from src.utils.log_wrapper import log_wrapper
-
-
 
 
 class LocalLlamaAdapter(LLMAdapter):

@@ -2,7 +2,7 @@
 """
 主程式入口
 
-‣ 依 .env 與情境設定檔 (scenario.yml) 來：
+‣ 依設定檔來：
     1. 初始化 Embedding / VectorIndex / LLM
     2. 載入 **階層式 JSON** reference 與 input
     3. flatten → ingest → 逐筆 RAG 產生結果
@@ -14,14 +14,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import pathlib
 import sys
 from typing import Any, Dict, List
-from datetime import datetime
 
 import argparse
-import yaml
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 import re
 
@@ -30,19 +26,19 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 # --- 新/修正 import ---
-from services.rag_engine import RAGEngine
-from services.scenario import Scenario
+from rag_core.application.rag_engine import RAGEngine
+from rag_core.domain.scenario import Scenario
 
-from managers.embedding_manager import EmbeddingManager
-from managers.data_structure_checker import DataStructureChecker
-from managers.vector_index import VectorIndex
-from managers.llm_manager import LLMManager
-from adapters.openai_adapter import OpenAIAdapter
-from adapters.local_llama_adapter import LocalLlamaAdapter
-from utils.text_preprocessor import TextPreprocessor
-from src.utils.log_wrapper import log_wrapper
+from rag_core.infrastructure.embedding import EmbeddingManager
+from rag_core.domain.schema_checker import DataStructureChecker
+from rag_core.infrastructure.vector_store import VectorIndex
+from rag_core.infrastructure.llm.llm_manager import LLMManager
+from rag_core.infrastructure.llm.openai_adapter import OpenAIAdapter
+from rag_core.infrastructure.llm.local_llama_adapter import LocalLlamaAdapter
+from rag_core.utils.text_preprocessor import TextPreprocessor
+from config.settings import config_manager
+from utils import log_wrapper
 
-load_dotenv(override=True)
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  Helper
@@ -74,41 +70,46 @@ def setup_core() -> tuple[EmbeddingManager, VectorIndex, LLMManager]:
     """
     初始化 EmbeddingManager / VectorIndex / LLMManager
     """
-    openai_api_key = os.getenv("OPENAI_API_KEY", "")
-    qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
-    vector_size = 1536
-    embed_model_name = os.getenv("EMBED_MODEL", "text-embedding-ada-002")
+    settings = config_manager.settings
 
     # Embedding
     embed_mgr = EmbeddingManager(
-        openai_api_key=openai_api_key,
-        embedding_model_name=embed_model_name
+        openai_api_key=settings.openai_api_key,
+        embedding_model_name=settings.embedding.model
     )
     
     # Data schema checker
     checker = DataStructureChecker()
 
     # Qdrant client
-    qdrant = QdrantClient(url=qdrant_url)
+    qdrant = QdrantClient(url=settings.vector_db.url)
 
     # VectorIndex
     vec_index = VectorIndex(
         embedding_manager=embed_mgr,
         data_checker=checker,
         qdrant_client=qdrant,
-        default_collection_name=os.getenv("QDRANT_COLLECTION", "my_rag_collection"),
-        vector_size=vector_size,
+        default_collection_name=settings.vector_db.collection,
+        vector_size=settings.vector_db.vector_size,
     )
 
     # LLM
     llm_mgr = LLMManager()
     llm_mgr.register_adapter(
         "openai",
-        OpenAIAdapter(openai_api_key=openai_api_key, temperature=0.0, max_tokens=2048),
+        OpenAIAdapter(
+            openai_api_key=settings.openai_api_key,
+            temperature=settings.llm.temperature,
+            max_tokens=settings.llm.max_tokens
+        ),
     )
     llm_mgr.register_adapter(
         "llama",
-        LocalLlamaAdapter(model_path="models/llama.bin", temperature=0.0, max_tokens=2048),
+        LocalLlamaAdapter(
+            model_path="models/llama.bin",
+            temperature=settings.llm.temperature,
+            max_tokens=settings.llm.max_tokens
+        ),
     )
     llm_mgr.set_default_adapter("openai")
 
@@ -132,43 +133,21 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-
     embedding_mgr, vector_index, llm_mgr = setup_core()
 
-    # ---------- 2. 載入 scenario 設定 ----------
-    scenario_path = os.getenv("SCENARIO_FILE", "scenario.yml")
-    if not pathlib.Path(scenario_path).exists():
-        # 若找不到，用最小可執行預設
-        default_scenario = {
-            "role_desc": "你是 RAG 比對助手",
-            "reference_desc": "以下為待比對參考資料",
-            "input_desc": "以下為使用者輸入",
-            "direction": "forward",
-            "rag_k": 5,
-            "cof_threshold": 0.5,
-            "reference_depth": 2,
-            "input_depth": 1,
-        }
-        with open(scenario_path, "w", encoding="utf-8") as fp:
-            yaml.safe_dump(default_scenario, fp, allow_unicode=True)
-        log_wrapper.info(
-            "main",
-            "create_default_scenario",
-            f"Default scenario.yml 已建立，路徑: {scenario_path}"
-        )
-
-    scenario_cfg: Dict[str, Any] = yaml.safe_load(open(scenario_path, "r", encoding="utf-8"))
-    scenario = Scenario(**scenario_cfg)  # pydantic 物件
+    # ---------- 2. 載入設定 ----------
+    scenario_cfg = config_manager.get_scenario_config()
+    scenario = Scenario(**scenario_cfg)
 
     # ---------- 3. 載入 reference / input JSON ----------
-    ref_path = scenario_cfg.get("reference_json") or os.getenv("REFERENCE_JSON")
-    inp_path = scenario_cfg.get("input_json") or os.getenv("INPUT_JSON")
+    ref_path = scenario_cfg.get("reference_json")
+    inp_path = scenario_cfg.get("input_json")
 
     if not ref_path or not inp_path:
         log_wrapper.error(
             "main",
             "main",
-            "reference_json 或 input_json 路徑未設定，請於 scenario.yml 或環境變數提供"
+            "reference_json 或 input_json 路徑未設定，請於設定檔中提供"
         )
         return
 
@@ -229,7 +208,7 @@ async def main() -> None:
     direction = scenario.direction.lower()
 
     # ---------- 5. Ingest ----------
-    base_collection = os.getenv("QDRANT_COLLECTION", "my_rag_collection")
+    base_collection = config_manager.settings.vector_db.collection
     collection = base_collection
     if args.run_id:
         collection += f"_{args.run_id}"
@@ -250,11 +229,7 @@ async def main() -> None:
 
     if direction == "forward":
         sem = asyncio.Semaphore(3)  # 可調整
-        error_handler = lambda e: log_wrapper.error(
-            "main",
-            "main",
-            f"Task failed: {str(e)}"
-        )
+
         async def _handle_doc(doc):
             async with sem:
                 idx_info = {
@@ -346,7 +321,6 @@ async def main() -> None:
         "main",
         f"RAG 結果已寫入 {out_path}，共 {len(results)} 筆"
     )
-
 
 if __name__ == "__main__":
     asyncio.run(main())
