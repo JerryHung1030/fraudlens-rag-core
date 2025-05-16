@@ -8,7 +8,7 @@
 
 * [Jerry Hung](https://github.com/JerryHung1030)
 * [Ken Su](https://github.com/ken-su)
-* [SJ](https://github.com/sj)
+* [SJ](https://github.com/shih1999)
 
 ScamShield‑AI ingests **real‑world fraud cases** (currently focused on Taiwan) and a growing set of regulatory references, turns them into vector embeddings with Qdrant, and leverages GPT‑4o —or a local Llama model— to provide judgment calls, evidence highlighting, and confidence scores.
 
