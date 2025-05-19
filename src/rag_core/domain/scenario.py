@@ -2,6 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 
+
 class Scenario(BaseModel):
     role_desc: str = ""
     reference_desc: str = ""
@@ -21,5 +22,5 @@ class Scenario(BaseModel):
     # 你可以再加 scenario-specific 欄位
 
     class Config:
-        allow_population_by_field_name = True
+        validate_by_name = True
         extra = "allow"  # or "forbid" to更嚴格

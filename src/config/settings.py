@@ -11,8 +11,12 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 
 class APIKeysConfig(BaseModel):
     """API Keys 相關設定"""
-    openai: str = Field(default="", alias="OPENAI_API_KEY")
+    openai: str = Field(default="", env="OPENAI_API_KEY")
     # 可以加入其他 API keys
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 
 class SystemConfig(BaseModel):
@@ -96,6 +100,9 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        env_nested_delimiter = "__"
 
 
 class ConfigManager:

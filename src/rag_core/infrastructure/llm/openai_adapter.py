@@ -26,6 +26,17 @@ class OpenAIAdapter(LLMAdapter):
         :param temperature: 生成溫度
         :param max_tokens: 回應最大 token 數
         """
+        # 驗證 API Key
+        if not openai_api_key or not openai_api_key.strip():
+            raise ValueError("OpenAI API key is not set or is empty")
+        
+        if not openai_api_key.startswith("sk-"):
+            log_wrapper.warning(
+                "OpenAIAdapter",
+                "__init__",
+                "API key format may be incorrect (should start with 'sk-')"
+            )
+
         # 固定使用 "gpt-4o" 作為 model 名稱
         super().__init__(model=model_name)
 
@@ -33,7 +44,7 @@ class OpenAIAdapter(LLMAdapter):
         self.max_tokens = max_tokens
 
         # 使用新版 openai.OpenAI(client) 初始化
-        self.client = OpenAI(api_key=openai_api_key)
+        self.client = OpenAI(api_key=openai_api_key.strip())
         self.model_name = model_name
 
     def generate_response(self, prompt: str) -> str:
@@ -47,13 +58,34 @@ class OpenAIAdapter(LLMAdapter):
                     model=self.model_name,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=self.temperature,
-                    max_tokens=self.max_tokens
+                    max_tokens=self.max_tokens,
+                    timeout=30  # 增加超時設定
                 )
                 return response.choices[0].message.content.strip()
             except OpenAIError as e:
-                self.handle_error(e)
+                error_msg = str(e)
+                if "Connection" in error_msg:
+                    log_wrapper.error(
+                        "OpenAIAdapter",
+                        "generate_response",
+                        f"Connection error: {error_msg}"
+                    )
+                elif "API key" in error_msg:
+                    log_wrapper.error(
+                        "OpenAIAdapter",
+                        "generate_response",
+                        "Invalid or expired API key"
+                    )
+                else:
+                    log_wrapper.error(
+                        "OpenAIAdapter",
+                        "generate_response",
+                        f"OpenAI API error: {error_msg}"
+                    )
+                
                 if i == max_retry - 1:
-                    return f"Error in generate_response after {max_retry} retries"
+                    raise  # 最後一次重試失敗時拋出例外
+                
                 sleep_sec = 2**i + random.random()
                 log_wrapper.warning(
                     "OpenAIAdapter",
@@ -85,8 +117,16 @@ class OpenAIAdapter(LLMAdapter):
         """
         非同步方式執行 generate_response。
         """
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self.generate_response, prompt)
+        loop = asyncio.get_running_loop()
+        try:
+            return await loop.run_in_executor(None, self.generate_response, prompt)
+        except Exception as e:
+            log_wrapper.error(
+                "OpenAIAdapter",
+                "async_generate_response",
+                f"Async generation error: {str(e)}"
+            )
+            raise
 
     async def async_stream_response(self, prompt: str) -> AsyncGenerator[str, None]:
         """

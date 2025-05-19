@@ -74,7 +74,7 @@ def setup_core() -> tuple[EmbeddingManager, VectorIndex, LLMManager]:
 
     # Embedding
     embed_mgr = EmbeddingManager(
-        openai_api_key=settings.openai_api_key,
+        openai_api_key=settings.api_keys.openai,
         embedding_model_name=settings.embedding.model
     )
     
@@ -98,7 +98,7 @@ def setup_core() -> tuple[EmbeddingManager, VectorIndex, LLMManager]:
     llm_mgr.register_adapter(
         "openai",
         OpenAIAdapter(
-            openai_api_key=settings.openai_api_key,
+            openai_api_key=settings.api_keys.openai,
             temperature=settings.llm.temperature,
             max_tokens=settings.llm.max_tokens
         ),

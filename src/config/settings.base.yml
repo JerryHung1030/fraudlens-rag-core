@@ -6,7 +6,7 @@ system:
   error_log_file_path: error.log
 
 api_keys:
-  openai: ${OPENAI_API_KEY}  # 從環境變數讀取
+  openai: sk-proj-xxx  # 從環境變數讀取
   # 可以加入其他 API keys
 
 llm:

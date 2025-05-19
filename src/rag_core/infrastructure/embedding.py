@@ -23,7 +23,7 @@ class EmbeddingManager:
         :param embedding_model_name: 嵌入模型名稱，若未提供則使用設定檔中的值
         """
         settings = config_manager.settings
-        self.openai_api_key = openai_api_key or settings.openai_api_key
+        self.openai_api_key = openai_api_key or settings.api_keys.openai
         self.embedding_model_name = embedding_model_name or settings.embedding.model
 
         # 如果想用其他embedding,可在此切換

@@ -1,6 +1,7 @@
 # src/utils/text_preprocessor.py
 from typing import Any, Dict, List
 
+
 class TextPreprocessor:
     """
     提供階層式 JSON 資料的 Flatten 與文字 Chunk 工具。
@@ -29,10 +30,10 @@ class TextPreprocessor:
                 group_uid = f"{side}-{orig_sid}"
                 # ③ uid = group_uid (暫無 chunk)
                 results.append({
-                    "orig_sid":  orig_sid,
+                    "orig_sid": orig_sid,
                     "group_uid": group_uid,
-                    "uid":       group_uid,
-                    "text":      item.get("text", "")
+                    "uid": group_uid,
+                    "text": item.get("text", "")
                 })
             return results
 
@@ -42,10 +43,10 @@ class TextPreprocessor:
                 group_uid = f"{side}-{'_'.join(sid_acc)}"
                 # ③ uid = group_uid (尚未 chunk)
                 results.append({
-                    "orig_sid":  sid_acc[0],     # 第一層sid 當作業務主鍵
+                    "orig_sid": sid_acc[0],     # 第一層sid 當作業務主鍵
                     "group_uid": group_uid,
-                    "uid":       group_uid,
-                    "text":      "\n".join(text_acc)
+                    "uid": group_uid,
+                    "text": "\n".join(text_acc)
                 })
                 return
 
@@ -56,23 +57,23 @@ class TextPreprocessor:
                 # 沒子層了，也算終點
                 group_uid = f"{side}-{'_'.join(sid_acc)}"
                 results.append({
-                    "orig_sid":  sid_acc[0],
+                    "orig_sid": sid_acc[0],
                     "group_uid": group_uid,
-                    "uid":       group_uid,
-                    "text":      "\n".join(text_acc)
+                    "uid": group_uid,
+                    "text": "\n".join(text_acc)
                 })
                 return
 
             # 繼續 DFS
             for child in children:
-                next_sid  = child.get("sid", "")
+                next_sid = child.get("sid", "")
                 next_text = child.get("text", "")
                 _dfs(child, level + 1, sid_acc + [next_sid], text_acc + [next_text])
 
         # 從 level1 開始展開
         level1_items = data.get("level1", [])
         for item in level1_items:
-            first_sid  = item.get("sid", "")
+            first_sid = item.get("sid", "")
             first_text = item.get("text", "")
             _dfs(
                 current_data=item,

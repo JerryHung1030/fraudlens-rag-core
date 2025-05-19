@@ -1,6 +1,6 @@
 # utils/token_counter.py
-import tiktoken
 from tiktoken import encoding_for_model, get_encoding
+
 
 class TokenCounter:
     _enc_cache = {}
@@ -11,7 +11,7 @@ class TokenCounter:
         if model not in TokenCounter._enc_cache:
             try:
                 enc = encoding_for_model(model)
-            except (KeyError, UnknownModelError):
+            except KeyError:
                 # 非內建 model 時，降回 cl100k_base
                 enc = get_encoding("cl100k_base")
             TokenCounter._enc_cache[model] = enc

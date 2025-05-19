@@ -5,11 +5,12 @@ from typing import Dict, Any
 from rq import Queue
 from redis import Redis
 
-from .rag_job_runner import RAGJobRunner
+from interfaces.jobs.rag_job_runner import RAGJobRunner
 
 # 初始化 Redis connection & RQ Queue（可改成 config 參數）
 redis_conn = Redis(host="127.0.0.1", port=6379, db=0)
 rag_queue = Queue("rag_jobs", connection=redis_conn)
+
 
 def start_rag_job(
     job_runner: RAGJobRunner,
