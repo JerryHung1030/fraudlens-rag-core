@@ -96,7 +96,7 @@ class VectorIndex:
             f"Collection {collection_name} is ready."
         )
 
-    def ingest_json(
+    async def ingest_json(
         self,
         collection_name: str,
         data: List[Dict[str, Any]],
@@ -140,13 +140,14 @@ class VectorIndex:
             chunk_uid = item["uid"]  # chunk id
             # 將業務 ID 轉換為合法的 Qdrant point ID
             point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_uid))
-            vector = self.embedding_manager.generate_embedding(item["text"])
+            vector = await asyncio.to_thread(self.embedding_manager.generate_embedding, item["text"])
             payload = dict(item)     # 包含 orig_sid, group_uid, side, text, ...
             points.append(PointStruct(id=point_id, vector=vector, payload=payload))
 
-        self._ensure_collection(collection_name)
+        await asyncio.to_thread(self._ensure_collection, collection_name)
         try:
-            self.qdrant_client.upsert(
+            await asyncio.to_thread(
+                self.qdrant_client.upsert,
                 collection_name=collection_name,
                 points=points
             )
