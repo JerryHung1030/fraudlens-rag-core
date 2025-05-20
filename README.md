@@ -1,8 +1,10 @@
-# ScamShield‑AI
+# RAGCore‑X
 
-> **An AI‑powered anti‑scam assistant that harnesses Retrieval‑Augmented Generation (RAG) with state‑of‑the‑art large language models to detect, analyze, and respond to scam‑related content in both Chinese and English.**
+> **A modular Retrieval‑Augmented Generation (RAG) core service that exposes high‑level Web APIs for document ingest, semantic search, comparison, and question‑answering—built to power multiple downstream products such as ScamShield‑AI, Relulens‑AI, and InsightDoc‑AI.**
 >
-> *LoRA or other parameter‑efficient fine‑tuning is **not** enabled yet, but the roadmap includes optional support once the local‑model pipeline is stable.*
+> *LoRA or other parameter‑efficient fine‑tuning is **not** enabled yet, but optional support is on the roadmap once the local‑model pipeline is solid.*
+
+---
 
 ## Authors
 
@@ -10,9 +12,19 @@
 * [Ken Su](https://github.com/ken-su)
 * [SJ](https://github.com/shih1999)
 
-ScamShield‑AI ingests **real‑world fraud cases** (currently focused on Taiwan) and a growing set of regulatory references, turns them into vector embeddings with Qdrant, and leverages GPT‑4o —or a local Llama model— to provide judgment calls, evidence highlighting, and confidence scores.
+---
 
-⚠️ **Project status: *alpha preview* — APIs may break during the upcoming refactors.** See the new [Development Status & Roadmap](#🚧-development-status--roadmap) section for details.
+## ✨ Features
+
+* **End‑to‑end RAG pipeline** powered by OpenAI GPT‑4o (default) or a local Llama adapter.
+* **Hierarchical JSON ingestion** (`level1` → `level5`) with automatic flattening, optional chunk‑splitting, and schema validation.
+* **Pluggable embeddings** via `langchain-openai` (defaults to `text‑embedding‑ada‑002`).
+* **Vector store abstraction** built on Qdrant, supporting upsert, search with metadata filters, and async operations.
+* **PromptBuilder** that fits the entire query + candidates within a configurable token budget and gracefully backs off.
+* **ResultFormatter** that parses the LLM JSON output, merges similarity scores, filters by confidence, and normalizes direction (forward / reverse / both).
+* **Job orchestration** with Redis‑RQ (batch ingest + RAG jobs) and a minimal FastAPI façade.
+* **Rich logging** via loguru with daily rotation.
+* **Extensive unit tests** (PyTest) with mocks for fast, cost‑free CI.
 
 ---
 
