@@ -7,23 +7,18 @@ from datetime import datetime
 
 BASE_URL = "http://localhost:8000/api/v1"
 
-async def create_rag_job(session, project_id, input_text, ref_text):
+async def create_rag_job(session, project_id, input_text, ref_text, scenario=None):
     """創建單個 RAG 任務"""
     test_data = {
         "project_id": project_id,
-        "scenario": {
-            "direction": "both",
-            "rag_k": 3,
-            "reference_depth": 1,
-            "input_depth": 1,
-            "chunk_size": 0
+        "scenario": scenario or {
         },
         "input_data": {
             "level1": [
                 {
                     "sid": f"input_{project_id}",
                     "text": input_text,
-                    "metadata": {"type": "test", "timestamp": datetime.now().isoformat()}
+                    # "metadata": {"type": "test", "project": project_id}
                 }
             ]
         },
@@ -32,7 +27,7 @@ async def create_rag_job(session, project_id, input_text, ref_text):
                 {
                     "sid": f"ref_{project_id}",
                     "text": ref_text,
-                    "metadata": {"type": "test", "timestamp": datetime.now().isoformat()}
+                    # "metadata": {"type": "test", "project": project_id}
                 }
             ]
         }
@@ -62,17 +57,44 @@ async def test_concurrent_rag():
         {
             "project_id": "project_1",
             "input_text": "這是第一個測試輸入文本",
-            "ref_text": "這是第一個測試參考文本"
+            "ref_text": "這是第一個測試參考文本",
+            "use_default_scenario": True  # 使用預設設定
         },
         {
             "project_id": "project_2",
             "input_text": "這是第二個測試輸入文本",
-            "ref_text": "這是第二個測試參考文本"
+            "ref_text": "這是第二個測試參考文本",
+            "use_default_scenario": False,  # 使用自定義設定
+            "scenario": {
+                "direction": "both",
+                "role_desc": "你是RAG助手，負責比較文本相似度",
+                "reference_desc": "Reference 為參考文本，用於比對",
+                "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
+                "rag_k": 3,
+                "rag_k_forward": 3,
+                "rag_k_reverse": 3,
+                "cof_threshold": 0.5,
+                "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段",
+                "llm_name": "openai"
+            }
         },
         {
             "project_id": "project_3",
             "input_text": "這是第三個測試輸入文本",
-            "ref_text": "這是第三個測試參考文本"
+            "ref_text": "這是第三個測試參考文本",
+            "use_default_scenario": False,  # 使用自定義設定
+            "scenario": {
+                "direction": "both",
+                "role_desc": "你是RAG助手，負責比較文本相似度",
+                "reference_desc": "Reference 為參考文本，用於比對",
+                "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
+                "rag_k": 3,
+                "rag_k_forward": 3,
+                "rag_k_reverse": 3,
+                "cof_threshold": 0.5,
+                "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段",
+                "llm_name": "openai"
+            }
         }
     ]
     
@@ -83,7 +105,8 @@ async def test_concurrent_rag():
         # 1. 並發創建多個任務
         print("\n1. 創建多個 RAG 任務:")
         create_tasks = [
-            create_rag_job(session, tc["project_id"], tc["input_text"], tc["ref_text"])
+            create_rag_job(session, tc["project_id"], tc["input_text"], tc["ref_text"], 
+                          scenario=tc.get("scenario") if not tc.get("use_default_scenario") else None)
             for tc in test_cases
         ]
         job_results = await asyncio.gather(*create_tasks)

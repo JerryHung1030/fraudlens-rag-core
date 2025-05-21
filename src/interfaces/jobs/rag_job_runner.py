@@ -57,10 +57,24 @@ class RAGJobRunner:
 
         async def _handle_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
             async with self._semaphore:
+                # 根據方向選擇正確的 rag_k
+                if direction == "forward":
+                    rag_k = scenario.rag_k_forward if scenario.rag_k_forward is not None else scenario.rag_k
+                    side = "reference"
+                elif direction == "reverse":
+                    rag_k = scenario.rag_k_reverse if scenario.rag_k_reverse is not None else scenario.rag_k
+                    side = "input"
+                else:  # both
+                    rag_k = scenario.rag_k
+                    side = "reference"  # 在 both 模式下，先搜尋 reference
+
+                # 確保 rag_k 至少為 1
+                rag_k = max(1, rag_k)
+
                 idx_info = {
                     "collection_name": collection,
-                    "filters": {"side": "reference"},
-                    "rag_k": scenario.rag_k_forward or scenario.rag_k,
+                    "filters": {"side": side},
+                    "rag_k": rag_k,
                 }
                 return await self.rag_engine.generate_answer(
                     user_query=doc["text"],
@@ -114,6 +128,9 @@ class RAGJobRunner:
             await self._validate_data(input_data, mode="input")
 
             # 2. 創建場景
+            # 合併預設設定和用戶提供的設定
+            default_scenario = self.settings.scenario.dict()
+            scenario_data = {**default_scenario, **scenario_data}  # 用戶設定覆蓋預設設定
             scenario = Scenario(**scenario_data)
 
             # 3. 處理文檔

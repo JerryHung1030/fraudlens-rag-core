@@ -5,7 +5,7 @@ from datetime import datetime
 class RAGRequest(BaseModel):
     """RAG 任務請求模型"""
     project_id: str = Field(..., description="專案ID")
-    scenario: Dict[str, Any] = Field(..., description="場景設定")
+    : Discenarioct[str, Any] = Field(default_factory=dict, description="場景設定")
     input_data: Dict[str, Any] = Field(..., description="輸入數據")
     reference_data: Dict[str, Any] = Field(..., description="參考數據")
     callback_url: Optional[str] = Field(None, description="回調URL")
