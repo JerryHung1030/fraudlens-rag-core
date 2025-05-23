@@ -20,67 +20,44 @@ class TextPreprocessor:
         - uid: 預設等於 group_uid（若之後 chunk，就加 _c{i}）
         """
         results: List[Dict[str, Any]] = []
-
         if depth == 1:
-            lvl1 = data.get("level1", [])
-            for item in lvl1:
-                # ① orig_sid
-                orig_sid = item["sid"]  # e.g. "p001"
-                # ② group_uid = side-orig_sid (若只有一層)
+            for item in data.get("level1", []):
+                orig_sid = item.get("sid", "")
                 group_uid = f"{side}-{orig_sid}"
-                # ③ uid = group_uid (暫無 chunk)
                 results.append({
                     "orig_sid": orig_sid,
                     "group_uid": group_uid,
                     "uid": group_uid,
-                    "text": item.get("text", "")
+                    "text": item.get("text", ""),
+                    "side": side,
                 })
             return results
 
-        def _dfs(current_data: Dict[str, Any], level: int, sid_acc: List[str], text_acc: List[str]):
-            if level >= depth:
-                # ② group_uid = side-拼接sid
-                group_uid = f"{side}-{'_'.join(sid_acc)}"
-                # ③ uid = group_uid (尚未 chunk)
-                results.append({
-                    "orig_sid": sid_acc[0],     # 第一層sid 當作業務主鍵
-                    "group_uid": group_uid,
-                    "uid": group_uid,
-                    "text": "\n".join(text_acc)
-                })
-                return
-
+        def _dfs(node: Dict[str, Any], level: int, sid_acc: List[str], text_acc: List[str]):
             key = f"level{level}"
-            children = current_data.get(key, [])
+            children = node.get(key)
 
-            if not isinstance(children, list) or not children:
-                # 沒子層了，也算終點
+            if level > depth or not isinstance(children, list) or not children:
                 group_uid = f"{side}-{'_'.join(sid_acc)}"
                 results.append({
                     "orig_sid": sid_acc[0],
                     "group_uid": group_uid,
                     "uid": group_uid,
-                    "text": "\n".join(text_acc)
+                    "text": "\n".join(text_acc),
+                    "side": side,
                 })
                 return
 
-            # 繼續 DFS
             for child in children:
                 next_sid = child.get("sid", "")
                 next_text = child.get("text", "")
                 _dfs(child, level + 1, sid_acc + [next_sid], text_acc + [next_text])
 
         # 從 level1 開始展開
-        level1_items = data.get("level1", [])
-        for item in level1_items:
+        for item in data.get("level1", []):
             first_sid = item.get("sid", "")
             first_text = item.get("text", "")
-            _dfs(
-                current_data=item,
-                level=2,
-                sid_acc=[first_sid],
-                text_acc=[first_text]
-            )
+            _dfs(item, 2, [first_sid], [first_text])
 
         return results
 

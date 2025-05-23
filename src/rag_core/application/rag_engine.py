@@ -30,9 +30,9 @@ class RAGEngine:
     async def generate_answer(
         self,
         user_query: str,
-        root_uid: str,
         scenario: Scenario,
         index_info: Dict[str, Any],
+        root_uid: str = "",
     ) -> List[Dict[str, Any]]:
         """
         非同步函式： scenario 為 pydantic 模型
@@ -124,15 +124,18 @@ class RAGEngine:
     def generate_answer_sync(
         self,
         user_query: str,
-        root_uid: str,
         scenario: Scenario,
         index_info: Dict[str, Any],
+        root_uid: str = "",
     ) -> List[Dict[str, Any]]:
         """
         同步 wrapper，使用 asyncio.run() 執行非同步程式碼。
         建議：直接使用 generate_answer() 的非同步版本。
         """
-        coro = self.generate_answer(user_query, root_uid, scenario, index_info)
+        if root_uid:
+            coro = self.generate_answer(user_query, scenario, index_info, root_uid)
+        else:
+            coro = self.generate_answer(user_query, scenario, index_info)
         try:
             loop = asyncio.get_running_loop()
             future = asyncio.run_coroutine_threadsafe(coro, loop)

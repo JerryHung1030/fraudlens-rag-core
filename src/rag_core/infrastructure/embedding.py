@@ -28,10 +28,15 @@ class EmbeddingManager:
 
         # 如果想用其他embedding,可在此切換
         self.embedding_model = OpenAIEmbeddings(
-            model=self.embedding_model_name,
-            openai_api_key=self.openai_api_key
+            api_key=self.openai_api_key,
+            model=self.embedding_model_name
         )
-        self._executor = ThreadPoolExecutor(max_workers=settings.thread_pool.embed_pool)
+        max_workers = settings.thread_pool.embed_pool
+        try:
+            max_workers = int(max_workers)
+        except Exception:
+            max_workers = 1
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
 
     def generate_embedding(self, text: str) -> List[float]:
         """
@@ -41,7 +46,7 @@ class EmbeddingManager:
         try:
             embedding = self.embedding_model.embed_query(text)
             if not embedding:
-                raise ValueError("Embedding model returned empty result")
+                raise ValueError("Embedding generation failed: No embedding vector returned.")
             return embedding
         except Exception as e:
             log_wrapper.error(

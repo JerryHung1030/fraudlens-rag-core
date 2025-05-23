@@ -47,5 +47,5 @@ class LocalLlamaAdapter(LLMAdapter):
             yield chunk
 
     def handle_error(self, e: Exception) -> None:
-        super().handle_error(e)
+        LLMAdapter.handle_error(self, e)
         # 可擴充更多錯誤處理

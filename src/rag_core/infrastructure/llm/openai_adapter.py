@@ -16,25 +16,31 @@ class OpenAIAdapter(LLMAdapter):
     """
     def __init__(
         self,
-        openai_api_key: str,
+        openai_api_key: str = None,
         model_name: str = "gpt-4o",
         temperature: float = 0.7,
-        max_tokens: int = 2048
+        max_tokens: int = 2048,
+        **kwargs,
     ):
         """
-        :param openai_api_key: OpenAI或代理API的金鑰
+        :param openai_api_key: OpenAI或代理API的金鑰 (alias api_key)
         :param temperature: 生成溫度
         :param max_tokens: 回應最大 token 數
         """
+        # allow alias api_key for compatibility
+        if openai_api_key is None:
+            openai_api_key = kwargs.get("api_key")
+
         # 驗證 API Key
-        if not openai_api_key or not openai_api_key.strip():
+        if not openai_api_key or not str(openai_api_key).strip():
             raise ValueError("OpenAI API key is not set or is empty")
-        
+        openai_api_key = str(openai_api_key).strip()
+
         if not openai_api_key.startswith("sk-"):
             log_wrapper.warning(
                 "OpenAIAdapter",
                 "__init__",
-                "API key format may be incorrect (should start with 'sk-')"
+                f"OpenAI API key '{openai_api_key}' does not start with 'sk-'. This might be an invalid key."
             )
 
         # 固定使用 "gpt-4o" 作為 model 名稱
@@ -64,34 +70,21 @@ class OpenAIAdapter(LLMAdapter):
                 return response.choices[0].message.content.strip()
             except OpenAIError as e:
                 error_msg = str(e)
-                if "Connection" in error_msg:
-                    log_wrapper.error(
-                        "OpenAIAdapter",
-                        "generate_response",
-                        f"Connection error: {error_msg}"
-                    )
-                elif "API key" in error_msg:
-                    log_wrapper.error(
-                        "OpenAIAdapter",
-                        "generate_response",
-                        "Invalid or expired API key"
-                    )
-                else:
-                    log_wrapper.error(
-                        "OpenAIAdapter",
-                        "generate_response",
-                        f"OpenAI API error: {error_msg}"
-                    )
-                
+
                 if i == max_retry - 1:
-                    raise  # 最後一次重試失敗時拋出例外
-                
-                sleep_sec = 2**i + random.random()
-                log_wrapper.warning(
+                    log_wrapper.error(
+                        "OpenAIAdapter",
+                        "generate_response",
+                        f"OpenAI API error after {max_retry} retries: {error_msg}"
+                    )
+                    raise
+
+                log_wrapper.error(
                     "OpenAIAdapter",
                     "generate_response",
-                    f"[Retry {i + 1}/{max_retry}] Wait {sleep_sec:.1f}s then retry..."
+                    f"OpenAI API error: {error_msg}. Retrying ({i + 1}/{max_retry - 1})..."
                 )
+                sleep_sec = 2 ** i + random.random()
                 time.sleep(sleep_sec)
 
     def stream_response(self, prompt: str):
@@ -112,6 +105,7 @@ class OpenAIAdapter(LLMAdapter):
                     yield chunk.choices[0].delta.content
         except OpenAIError as e:
             self.handle_error(e)
+            raise
 
     async def async_generate_response(self, prompt: str) -> str:
         """
@@ -147,16 +141,23 @@ class OpenAIAdapter(LLMAdapter):
                 yield chunk
             except StopIteration:
                 break
+            except Exception as e:
+                log_wrapper.error(
+                    "OpenAIAdapter",
+                    "async_stream_response",
+                    f"Error in async_stream_response: {str(e)}"
+                )
+                raise
 
     def handle_error(self, e: Exception) -> None:
         """
         錯誤處理: 記錄log, 並可自行擴充其他行為(通知/重試等)。
         """
-        super().handle_error(e)
+        LLMAdapter.handle_error(self, e)
         log_wrapper.error(
             "OpenAIAdapter",
             "handle_error",
-            f"OpenAIAdapter error: {str(e)}"
+            f"OpenAI Specific Error: {str(e)}"
         )
 
     async def _generate_with_retry(self, prompt: str, max_retry: int = 3) -> str:

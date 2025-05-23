@@ -26,14 +26,14 @@ class VectorIndex:
         embedding_manager: EmbeddingManager,
         data_checker: DataStructureChecker,
         qdrant_client: QdrantClient,
-        default_collection_name: str = None,
+        collection_name: str = None,
         vector_size: int = None
     ):
         self.embedding_manager = embedding_manager
         self.data_checker = data_checker
         self.qdrant_client = qdrant_client
         settings = config_manager.settings.vector_db
-        self.default_collection_name = default_collection_name or settings.collection
+        self.default_collection_name = collection_name or settings.collection
         self.vector_size = vector_size or settings.vector_size
 
         # Ensure default collection exists

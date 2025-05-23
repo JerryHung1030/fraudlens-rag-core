@@ -49,16 +49,16 @@ def load_json_file(path: str) -> Dict[str, Any]:
             return json.load(f)
     except FileNotFoundError:
         log_wrapper.error(
-            "main",
             "load_json_file",
-            f"JSON file {path} not found!"
+            "load_json_file",
+            f"File not found: {path}"
         )
         raise
     except json.JSONDecodeError as e:
         log_wrapper.error(
-            "main",
             "load_json_file",
-            f"JSON decode error in {path}: {e}"
+            "load_json_file",
+            f"Error decoding JSON from file {path}: {e}"
         )
         raise
 
@@ -82,14 +82,17 @@ def setup_core() -> tuple[EmbeddingManager, VectorIndex, LLMManager]:
     checker = DataStructureChecker()
 
     # Qdrant client
-    qdrant = QdrantClient(url=settings.vector_db.url)
+    if settings.vector_db.url == "http://localhost:6333":
+        qdrant = QdrantClient(host=settings.vector_db.qdrant_host, port=settings.vector_db.qdrant_port)
+    else:
+        qdrant = QdrantClient(url=settings.vector_db.url)
 
     # VectorIndex
     vec_index = VectorIndex(
         embedding_manager=embed_mgr,
         data_checker=checker,
         qdrant_client=qdrant,
-        default_collection_name=settings.vector_db.collection,
+        collection_name=settings.vector_db.collection,
         vector_size=settings.vector_db.vector_size,
     )
 
@@ -98,7 +101,8 @@ def setup_core() -> tuple[EmbeddingManager, VectorIndex, LLMManager]:
     llm_mgr.register_adapter(
         "openai",
         OpenAIAdapter(
-            openai_api_key=settings.api_keys.openai,
+            api_key=settings.api_keys.openai,
+            model_name=settings.llm.model,
             temperature=settings.llm.temperature,
             max_tokens=settings.llm.max_tokens
         ),
