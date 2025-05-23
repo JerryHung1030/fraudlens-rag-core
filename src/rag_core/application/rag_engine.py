@@ -132,26 +132,16 @@ class RAGEngine:
         同步 wrapper，使用 asyncio.run() 執行非同步程式碼。
         建議：直接使用 generate_answer() 的非同步版本。
         """
+        coro = self.generate_answer(user_query, root_uid, scenario, index_info)
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 已在事件迴圈中運行，直接使用 create_task
-                return asyncio.create_task(
-                    self.generate_answer(user_query, root_uid, scenario, index_info)
-                )
-            else:
-                # 有事件迴圈但未運行，使用 run_until_complete
-                return loop.run_until_complete(
-                    self.generate_answer(user_query, root_uid, scenario, index_info)
-                )
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result()
         except RuntimeError:
             # 沒有事件迴圈：使用 asyncio.run()
             try:
                 return asyncio.run(
-                    asyncio.wait_for(
-                        self.generate_answer(user_query, root_uid, scenario, index_info),
-                        timeout=30
-                    )
+                    asyncio.wait_for(coro, timeout=30)
                 )
             except asyncio.TimeoutError:
                 log_wrapper.error(
