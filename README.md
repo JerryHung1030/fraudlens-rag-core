@@ -9,7 +9,7 @@
 ## Authors
 
 * [Jerry Hung](https://github.com/JerryHung1030)
-* [Ken Su](https://github.com/ken-su)
+* [Ken Su](https://github.com/ken22i)
 * [SJ](https://github.com/shih1999)
 
 ---
