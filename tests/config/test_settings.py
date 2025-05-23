@@ -11,8 +11,9 @@ from src.config.settings import (
     Settings,
     ConfigManager,
     get_config_manager,
-    PROJECT_ROOT # Used for path resolution tests
+    PROJECT_ROOT  # Used for path resolution tests
 )
+import src.config.settings as settings_module
 
 # --- Fixtures ---
 
@@ -74,10 +75,10 @@ class TestSettingsClass:
         """Defaults only: Clear relevant env vars. Check a few default values."""
         mocker.patch.dict(os.environ, {}, clear=True)
         # Reload settings module to re-evaluate Settings with cleared env vars
-        importlib.reload(src.config.settings)
-        s = src.config.settings.Settings()
+        importlib.reload(settings_module)
+        s = settings_module.Settings()
         
-        assert s.llm.model == "gpt-4-1106-preview" # Example default
+        assert s.llm.model == "gpt-4o"  # Example default
         assert s.vector_db.url == "http://localhost:6333" # Example default
         assert s.system.is_debug is False # Example default
 
@@ -93,8 +94,8 @@ class TestSettingsClass:
         mocker.patch.dict(os.environ, mock_env_vars, clear=True)
         
         # Reload settings module to ensure Settings picks up new env vars
-        importlib.reload(src.config.settings)
-        s = src.config.settings.Settings()
+        importlib.reload(settings_module)
+        s = settings_module.Settings()
         
         assert s.api_keys.openai == "env_key"
         assert s.vector_db.url == "env_q_url"
@@ -122,8 +123,8 @@ class TestSettingsClass:
         # The prompt's `LLM_MODEL` implies `llm: LLMConfig`.
         # Let's add an env var for a ScenarioConfig field to test this.
         mocker.patch.dict(os.environ, {"SCENARIO_REFERENCE_JSON": "env_scenario_ref.json"}, clear=False) # Add to existing
-        importlib.reload(src.config.settings) # Reload again after adding new var
-        s_reloaded = src.config.settings.Settings()
+        importlib.reload(settings_module)  # Reload again after adding new var
+        s_reloaded = settings_module.Settings()
         assert s_reloaded.scenario.reference_json.endswith("env_scenario_ref.json") #endswith due to path resolution
 
 
@@ -143,8 +144,8 @@ class TestConfigManager:
         self.mock_os_path_exists.return_value = False # settings.base.yml does not exist
         mocker.patch.dict(os.environ, {"LLM_MODEL": "env_only_model"}, clear=True)
         
-        importlib.reload(src.config.settings) # Reload to re-evaluate ConfigManager global state potentially
-        manager = src.config.settings.ConfigManager() # Test with a fresh instance
+        importlib.reload(settings_module)  # Reload to re-evaluate ConfigManager global state potentially
+        manager = settings_module.ConfigManager()  # Test with a fresh instance
         
         assert manager.settings.llm.model == "env_only_model"
         assert manager.settings.vector_db.vector_size == 768 # Default value
@@ -172,8 +173,8 @@ class TestConfigManager:
             "QDRANT_URL": "env_q_url_takes_effect"
         }, clear=True)
         
-        importlib.reload(src.config.settings)
-        manager = src.config.settings.ConfigManager()
+        importlib.reload(settings_module)
+        manager = settings_module.ConfigManager()
 
         assert manager.settings.llm.model == "yaml_model" # YAML value for 'model'
         assert manager.settings.vector_db.collection == "yaml_coll" # YAML value for 'collection'
@@ -188,8 +189,8 @@ class TestConfigManager:
 
         mocker.patch.dict(os.environ, {"LLM_MODEL": "env_model_takes_effect_empty_yaml"}, clear=True)
         
-        importlib.reload(src.config.settings)
-        manager = src.config.settings.ConfigManager()
+        importlib.reload(settings_module)
+        manager = settings_module.ConfigManager()
         
         assert manager.settings.llm.model == "env_model_takes_effect_empty_yaml"
         assert manager.settings.vector_db.port == 6333 # Default
@@ -204,11 +205,11 @@ class TestConfigManager:
             "SCENARIO_OUTPUT_JSON": "env_out.json"
         }, clear=True)
         
-        importlib.reload(src.config.settings)
-        manager = src.config.settings.ConfigManager()
+        importlib.reload(settings_module)
+        manager = settings_module.ConfigManager()
         
         # Ensure paths are resolved in the scenario config loaded into settings
-        expected_scenario_dict = src.config.settings.ScenarioConfig(
+        expected_scenario_dict = settings_module.ScenarioConfig(
             reference_json="env_ref.json",
             input_json="env_in.json",
             output_json="env_out.json"
@@ -239,11 +240,11 @@ def test_get_config_manager_singleton(mocker):
     # itself depends on module-level state that mocks would change.
     # For lru_cache, clearing it (done by fixture) is key.
     
-    importlib.reload(src.config.settings) # Ensure a fresh start for the module context
-    manager1 = src.config.settings.get_config_manager()
+    importlib.reload(settings_module)  # Ensure a fresh start for the module context
+    manager1 = settings_module.get_config_manager()
     
-    importlib.reload(src.config.settings) # Simulate a different part of code importing/calling
-    manager2 = src.config.settings.get_config_manager() # Should get from cache if not reloaded
+    importlib.reload(settings_module)  # Simulate a different part of code importing/calling
+    manager2 = settings_module.get_config_manager()  # Should get from cache if not reloaded
                                                         # but reload + cache_clear ensures clean test
 
     # The key is that get_config_manager is cached. Reloading the module
@@ -255,7 +256,7 @@ def test_get_config_manager_singleton(mocker):
     # return the same ConfigManager instance.
     
     # Let's ensure we're calling the same function object for cache to work as expected in test
-    current_get_config_manager = src.config.settings.get_config_manager
+    current_get_config_manager = settings_module.get_config_manager
     current_get_config_manager.cache_clear() # Clear again just in case
 
     manager1 = current_get_config_manager()

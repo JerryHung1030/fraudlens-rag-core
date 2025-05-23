@@ -39,7 +39,14 @@ if 'loguru' not in sys.modules:
 
 # Stubs for external libraries not installed in the test environment
 if 'pydantic_settings' not in sys.modules:
-    from pydantic import BaseSettings as _PydanticBaseSettings
+    try:
+        from pydantic_settings import BaseSettings as _PydanticBaseSettings
+    except Exception:
+        try:
+            from pydantic import BaseSettings as _PydanticBaseSettings
+        except Exception:
+            _PydanticBaseSettings = object
+
     pyd_stub = types.ModuleType('pydantic_settings')
 
     class BaseSettings(_PydanticBaseSettings):
@@ -113,3 +120,56 @@ if 'yaml' not in sys.modules:
     yaml_stub.safe_load = safe_load
     yaml_stub.dump = dump
     sys.modules['yaml'] = yaml_stub
+
+# ---------------------------------------------------------------------------
+# Fallback implementation of the 'mocker' fixture normally provided by
+# the pytest-mock plugin. This minimal version supports the patch helpers
+# commonly used throughout the tests.
+
+import pytest
+from unittest.mock import patch, MagicMock
+
+
+class _SimpleMocker:
+    """Minimal mocker with patch helpers."""
+
+    def __init__(self):
+        self._patches = []
+
+        class _PatchProxy:
+            def __init__(self, outer):
+                self._outer = outer
+
+            def __call__(self, target, *args, **kwargs):
+                p = patch(target, *args, **kwargs)
+                obj = p.start()
+                self._outer._patches.append(p)
+                return obj
+
+            def object(self, target, attribute, *args, **kwargs):
+                p = patch.object(target, attribute, *args, **kwargs)
+                obj = p.start()
+                self._outer._patches.append(p)
+                return obj
+
+            def dict(self, in_dict, values, **kwargs):
+                p = patch.dict(in_dict, values, **kwargs)
+                obj = p.start()
+                self._outer._patches.append(p)
+                return obj
+
+        self.patch = _PatchProxy(self)
+        self.Mock = MagicMock
+        self.MagicMock = MagicMock
+
+    def stopall(self):
+        for p in reversed(self._patches):
+            p.stop()
+        self._patches.clear()
+
+
+@pytest.fixture
+def mocker():
+    sm = _SimpleMocker()
+    yield sm
+    sm.stopall()
