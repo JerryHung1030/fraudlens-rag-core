@@ -116,23 +116,35 @@ class RAGJobRunner:
             Dict[str, Any]: 任務結果
         """
         try:
-            job_id = job_payload["job_id"]
-            project_id = job_payload["project_id"]
-            scenario_data = job_payload["scenario"]
-            input_data = job_payload["input_data"]
-            reference_data = job_payload["reference_data"]
+            # 確保 job_payload 是字典
+            if isinstance(job_payload, str):
+                job_payload = json.loads(job_payload)
+                
+            logger.info(f"開始執行任務 {job_payload.get('job_id')}")
+            
+            job_id = job_payload.get("job_id")
+            project_id = job_payload.get("project_id")
+            scenario_data = job_payload.get("scenario", {})
+            input_data = job_payload.get("input_data", {})
+            reference_data = job_payload.get("reference_data", {})
             callback_url = job_payload.get("callback_url")
 
+            if not all([job_id, project_id, scenario_data, input_data, reference_data]):
+                raise ValueError("Missing required fields in job_payload")
+
+            logger.info("驗證數據...")
             # 1. 驗證數據
             await self._validate_data(reference_data, mode="reference")
             await self._validate_data(input_data, mode="input")
 
+            logger.info("創建場景...")
             # 2. 創建場景
             # 合併預設設定和用戶提供的設定
             default_scenario = self.settings.scenario.dict()
             scenario_data = {**default_scenario, **scenario_data}  # 用戶設定覆蓋預設設定
             scenario = Scenario(**scenario_data)
 
+            logger.info("處理文檔...")
             # 3. 處理文檔
             ref_depth = scenario.reference_depth
             inp_depth = scenario.input_depth
@@ -142,6 +154,7 @@ class RAGJobRunner:
 
             # 4. 分塊處理（如果需要）
             if scenario.chunk_size > 0:
+                logger.info("執行分塊處理...")
                 chunk_size = scenario.chunk_size
 
                 # 處理參考文檔
@@ -172,9 +185,11 @@ class RAGJobRunner:
                         })
                 inp_docs = new_inp_docs
 
+            logger.info("設置集合名稱...")
             # 5. 設置集合名稱
             collection = f"{self.settings.vector_db.collection}_{project_id}"
 
+            logger.info("處理文檔方向...")
             # 6. 根據方向處理文檔
             direction = scenario.direction.lower()
             if direction == "both":
@@ -185,6 +200,7 @@ class RAGJobRunner:
             elif direction == "reverse":
                 await self.vector_index.ingest_json(collection, inp_docs, mode="input")
 
+            logger.info("執行 RAG...")
             # 7. 執行 RAG
             results = await self._process_documents(
                 inp_docs,
@@ -193,6 +209,7 @@ class RAGJobRunner:
                 direction
             )
 
+            logger.info("準備結果...")
             # 8. 準備結果
             result = {
                 "job_id": job_id,
@@ -204,14 +221,17 @@ class RAGJobRunner:
 
             # 9. 發送回調（如果有）
             if callback_url:
+                logger.info("發送回調通知...")
                 await self._send_callback(callback_url, result)
 
+            logger.info(f"任務 {job_id} 完成")
             return result
 
         except Exception as e:
+            logger.error(f"任務執行失敗: {str(e)}")
             error_result = {
-                "job_id": job_payload["job_id"],
-                "project_id": job_payload["project_id"],
+                "job_id": job_payload.get("job_id"),
+                "project_id": job_payload.get("project_id"),
                 "status": "failed",
                 "error": str(e),
                 "failed_at": datetime.utcnow().isoformat()

@@ -25,7 +25,7 @@ class TextPreprocessor:
             lvl1 = data.get("level1", [])
             for item in lvl1:
                 # ① orig_sid
-                orig_sid = item["sid"]  # e.g. "p001"
+                orig_sid = item.get("sid", "")  # 使用 get 方法安全地獲取 sid
                 # ② group_uid = side-orig_sid (若只有一層)
                 group_uid = f"{side}-{orig_sid}"
                 # ③ uid = group_uid (暫無 chunk)

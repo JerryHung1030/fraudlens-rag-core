@@ -66,11 +66,11 @@ python-multipart==0.0.9
 pytz==2025.2
 PyYAML==6.0.2
 qdrant-client==1.14.2
-redis==6.1.0
+redis>=4.5.1
 regex==2024.11.6
 requests==2.32.3
 requests-toolbelt==1.0.0
-rq==2.3.3
+rq>=1.15.1
 scikit-learn==1.6.1
 scipy==1.15.2
 seaborn==0.13.2

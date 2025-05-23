@@ -9,10 +9,27 @@ BASE_URL = "http://localhost:8000/api/v1"
 
 async def create_rag_job(session, project_id, input_text, ref_text, scenario=None):
     """創建單個 RAG 任務"""
+    # 預設的 scenario 配置
+    default_scenario = {
+        "direction": "forward",
+        "role_desc": "你是RAG助手，負責比較文本相似度",
+        "reference_desc": "Reference 為參考文本，用於比對",
+        "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
+        "rag_k": 3,
+        "rag_k_forward": 3,
+        "rag_k_reverse": 3,
+        "cof_threshold": 0.5,
+        "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段",
+        "llm_name": "openai",
+        "reference_depth": 1,
+        "input_depth": 1,
+        "chunk_size": 0,
+        "max_prompt_tokens": 8000
+    }
+    
     test_data = {
         "project_id": project_id,
-        "scenario": scenario or {
-        },
+        "scenario": scenario or default_scenario,
         "input_data": {
             "level1": [
                 {
@@ -41,13 +58,22 @@ async def check_job_status(session, job_id):
     async with session.get(f"{BASE_URL}/rag/{job_id}") as response:
         return await response.json()
 
-async def wait_for_job_completion(session, job_id, max_retries=10):
+async def wait_for_job_completion(session, job_id, max_retries=30, retry_interval=2):
     """等待任務完成"""
-    for _ in range(max_retries):
-        status = await check_job_status(session, job_id)
-        if status["status"] in ["completed", "failed"]:
-            return status
-        await asyncio.sleep(2)
+    for i in range(max_retries):
+        try:
+            status = await check_job_status(session, job_id)
+            print(f"檢查任務 {job_id} 狀態 (嘗試 {i+1}/{max_retries}): {json.dumps(status, indent=2, ensure_ascii=False)}")
+            
+            if status and status.get("status") in ["completed", "failed"]:
+                return status
+                
+            await asyncio.sleep(retry_interval)
+        except Exception as e:
+            print(f"檢查任務狀態時發生錯誤: {str(e)}")
+            await asyncio.sleep(retry_interval)
+            
+    print(f"任務 {job_id} 在 {max_retries} 次嘗試後仍未完成")
     return None
 
 async def test_concurrent_rag():
@@ -58,31 +84,25 @@ async def test_concurrent_rag():
             "project_id": "project_1",
             "input_text": "這是第一個測試輸入文本",
             "ref_text": "這是第一個測試參考文本",
-            "use_default_scenario": True  # 使用預設設定
+            "use_default_scenario": True,  # 使用默認設定
+            "scenario": None
         },
         {
             "project_id": "project_2",
             "input_text": "這是第二個測試輸入文本",
             "ref_text": "這是第二個測試參考文本",
-            "use_default_scenario": False,  # 使用自定義設定
+            "use_default_scenario": False,  # 使用部分自定義設定
             "scenario": {
                 "direction": "both",
-                "role_desc": "你是RAG助手，負責比較文本相似度",
-                "reference_desc": "Reference 為參考文本，用於比對",
-                "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
                 "rag_k": 3,
-                "rag_k_forward": 3,
-                "rag_k_reverse": 3,
-                "cof_threshold": 0.5,
-                "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段",
-                "llm_name": "openai"
+                "cof_threshold": 0.7
             }
         },
         {
             "project_id": "project_3",
             "input_text": "這是第三個測試輸入文本",
             "ref_text": "這是第三個測試參考文本",
-            "use_default_scenario": False,  # 使用自定義設定
+            "use_default_scenario": False,  # 使用完整自定義設定
             "scenario": {
                 "direction": "both",
                 "role_desc": "你是RAG助手，負責比較文本相似度",
@@ -93,7 +113,11 @@ async def test_concurrent_rag():
                 "rag_k_reverse": 3,
                 "cof_threshold": 0.5,
                 "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段",
-                "llm_name": "openai"
+                "llm_name": "openai",
+                "reference_depth": 1,
+                "input_depth": 1,
+                "chunk_size": 0,
+                "max_prompt_tokens": 8000
             }
         }
     ]
@@ -102,6 +126,11 @@ async def test_concurrent_rag():
     start_time = time.time()
     
     async with aiohttp.ClientSession() as session:
+        # 0. 清理所有已完成的任務
+        print("\n0. 清理所有已完成的任務:")
+        async with session.get(f"{BASE_URL}/rag?clean_old=true") as response:
+            await response.json()
+        
         # 1. 並發創建多個任務
         print("\n1. 創建多個 RAG 任務:")
         create_tasks = [
@@ -121,7 +150,10 @@ async def test_concurrent_rag():
         completed_results = await asyncio.gather(*wait_tasks)
         
         for result in completed_results:
-            print(f"任務完成狀態: {json.dumps(result, indent=2, ensure_ascii=False)}")
+            if result:
+                print(f"任務完成狀態: {json.dumps(result, indent=2, ensure_ascii=False)}")
+            else:
+                print("任務狀態檢查失敗")
         
         # 3. 列出所有任務
         print("\n3. 列出所有任務:")

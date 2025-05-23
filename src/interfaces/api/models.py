@@ -1,14 +1,18 @@
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime
+from rag_core.domain.scenario import Scenario
 
 class RAGRequest(BaseModel):
     """RAG 任務請求模型"""
     project_id: str = Field(..., description="專案ID")
-    : Discenarioct[str, Any] = Field(default_factory=dict, description="場景設定")
+    scenario: Scenario = Field(..., description="場景設定")
     input_data: Dict[str, Any] = Field(..., description="輸入數據")
     reference_data: Dict[str, Any] = Field(..., description="參考數據")
     callback_url: Optional[str] = Field(None, description="回調URL")
+
+    class Config:
+        arbitrary_types_allowed = True
 
 class RAGResponse(BaseModel):
     """RAG 任務回應模型"""

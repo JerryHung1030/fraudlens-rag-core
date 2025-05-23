@@ -1,9 +1,14 @@
 import os
 import sys
 import asyncio
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
+from rq import Queue
+from redis import Redis
+import json
+import logging
+from datetime import datetime
 
 from .models import RAGRequest, RAGResponse, JobStatus
 from .job_manager import job_manager
@@ -18,9 +23,18 @@ from rag_core.infrastructure.llm.llm_manager import LLMManager
 from rag_core.infrastructure.llm.openai_adapter import OpenAIAdapter
 from rag_core.infrastructure.llm.local_llama_adapter import LocalLlamaAdapter
 
+# 設置日誌
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # --- 專案內部 import ----------------------------------------------------------
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
+# 初始化 Redis 和 RQ Queue
+redis_conn = Redis(host="127.0.0.1", port=6379, db=0)
+rag_queue = Queue("rag_jobs", connection=redis_conn)
+
 app = FastAPI(
     title="ScamShield AI API",
     description="RAG-based AI API for scam detection",
@@ -37,7 +51,6 @@ app.add_middleware(
 )
 
 # 初始化核心元件
-
 def setup_core():
     settings = config_manager.settings
 
@@ -90,53 +103,142 @@ def setup_core():
 # 全域 RAG 執行器
 rag_runner = setup_core()
 
-async def process_rag_job(job_id: str, request: RAGRequest):
-    """背景處理 RAG 任務"""
+def update_job_status(job_id: str, status: str, results: Optional[list] = None, error: Optional[str] = None):
+    """更新任務狀態到 Redis"""
     try:
-        # 更新任務狀態為處理中
-        await job_manager.update_job(job_id, "processing")
+        job_key = f"rag_job:{job_id}"
+        job_data = redis_conn.get(job_key)
+        if job_data:
+            job = json.loads(job_data)
+            job["status"] = status
+            job["updated_at"] = datetime.utcnow().isoformat()
+            
+            if results is not None:
+                # 確保 results 是列表格式
+                if isinstance(results, list):
+                    # 如果結果是嵌套列表，取第一個元素
+                    if results and isinstance(results[0], list):
+                        job["results"] = results[0]
+                    else:
+                        job["results"] = results
+                else:
+                    job["results"] = [results]
+                    
+            if error is not None:
+                job["error"] = error
+                
+            if status == "completed":
+                job["completed_at"] = datetime.utcnow().isoformat()
+            elif status == "failed":
+                job["failed_at"] = datetime.utcnow().isoformat()
+                
+            redis_conn.set(job_key, json.dumps(job))
+            logger.info(f"已更新任務 {job_id} 狀態為 {status}")
+    except Exception as e:
+        logger.error(f"更新任務狀態失敗: {str(e)}")
+
+def process_rag_job(job_payload: dict) -> dict:
+    """處理 RAG 任務的函數，用於 RQ worker"""
+    try:
+        # 將 JSON 字串轉換回 Python 物件
+        if isinstance(job_payload, str):
+            logger.info("解析 JSON 字串...")
+            job_payload = json.loads(job_payload)
+            
+        job_id = job_payload.get('job_id')
+        logger.info(f"開始處理任務: {job_id}")
+            
+        # 從 rag_core.domain.scenario 導入 Scenario
+        from rag_core.domain.scenario import Scenario
+        
+        # 將 scenario 字典轉換為 Scenario 物件
+        scenario_data = job_payload.get("scenario", {})
+        if isinstance(scenario_data, dict):
+            logger.info("轉換 scenario 為 Scenario 物件...")
+            scenario = Scenario(**scenario_data)
+            # 使用 dict() 方法將 Scenario 物件轉換回字典
+            job_payload["scenario"] = scenario.dict()
+            
+        logger.info("執行 RAG 任務...")
+        # 創建新的事件循環
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            # 執行 RAG 任務
+            result = loop.run_until_complete(rag_runner.run_job(job_payload))
+            logger.info(f"任務完成: {job_id}")
+            
+            # 更新任務狀態
+            update_job_status(
+                job_id=job_id,
+                status="completed",
+                results=result.get("results")
+            )
+            
+            return result
+        finally:
+            loop.close()
+            
+    except Exception as e:
+        logger.error(f"任務處理失敗: {str(e)}")
+        # 更新任務狀態為失敗
+        if job_id:
+            update_job_status(
+                job_id=job_id,
+                status="failed",
+                error=str(e)
+            )
+        return {"error": str(e)}
+
+@app.post("/api/v1/rag", response_model=RAGResponse)
+async def create_rag_job(request: RAGRequest) -> RAGResponse:
+    """創建新的 RAG 任務"""
+    try:
+        # 創建新任務
+        job_id = await job_manager.create_job(request.project_id)
+        logger.info(f"創建新任務: {job_id}")
+        
+        # 獲取默認的 scenario 設定
+        default_scenario = config_manager.get_scenario_config()
+        
+        # 合併 scenario 設定
+        scenario_data = request.scenario.dict() if request.scenario else {}
+        merged_scenario = {**default_scenario, **scenario_data}
         
         # 準備任務參數
         job_payload = {
             "job_id": job_id,
             "project_id": request.project_id,
-            "scenario": request.scenario,
+            "scenario": merged_scenario,
             "input_data": request.input_data,
             "reference_data": request.reference_data,
             "callback_url": request.callback_url
         }
         
-        # 執行 RAG 任務
-        result = await rag_runner.run_job(job_payload)
+        # 將任務信息保存到 Redis
+        job_key = f"rag_job:{job_id}"
+        job_data = {
+            "job_id": job_id,
+            "project_id": request.project_id,
+            "status": "pending",
+            "progress": None,
+            "results": None,
+            "error": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "completed_at": None,
+            "failed_at": None
+        }
+        redis_conn.set(job_key, json.dumps(job_data))
         
-        # 更新任務狀態為完成
-        await job_manager.update_job(
-            job_id,
-            "completed",
-            results=result.get("results"),
-            progress=100.0
+        # 將任務加入 RQ Queue
+        job = rag_queue.enqueue(
+            process_rag_job,
+            json.dumps(job_payload, default=str),
+            job_id=job_id
         )
-        
-    except Exception as e:
-        # 更新任務狀態為失敗
-        await job_manager.update_job(
-            job_id,
-            "failed",
-            error=str(e)
-        )
-
-@app.post("/api/v1/rag", response_model=RAGResponse)
-async def create_rag_job(
-    request: RAGRequest,
-    background_tasks: BackgroundTasks
-) -> RAGResponse:
-    """創建新的 RAG 任務"""
-    try:
-        # 創建新任務
-        job_id = await job_manager.create_job(request.project_id)
-        
-        # 加入背景任務
-        background_tasks.add_task(process_rag_job, job_id, request)
+        logger.info(f"任務已加入佇列: {job_id}")
         
         # 返回初始回應
         return RAGResponse(
@@ -146,20 +248,51 @@ async def create_rag_job(
         )
         
     except Exception as e:
+        logger.error(f"創建任務失敗: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/rag/{job_id}", response_model=JobStatus)
 async def get_job_status(job_id: str) -> JobStatus:
     """獲取任務狀態"""
-    job = await job_manager.get_job(job_id)
-    if not job:
+    job_key = f"rag_job:{job_id}"
+    job_data = redis_conn.get(job_key)
+    if not job_data:
         raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return JobStatus(**json.loads(job_data))
 
 @app.get("/api/v1/rag", response_model=List[JobStatus])
-async def list_jobs(project_id: Optional[str] = None) -> List[JobStatus]:
-    """列出所有任務"""
-    return await job_manager.list_jobs(project_id)
+async def list_jobs(project_id: Optional[str] = None, clean_old: bool = False) -> List[JobStatus]:
+    """列出所有任務
+    
+    Args:
+        project_id: 可選的專案 ID 過濾
+        clean_old: 是否清理已完成的任務記錄（默認為 False）
+    """
+    jobs = []
+    for key in redis_conn.keys("rag_job:*"):
+        job_data = redis_conn.get(key)
+        if job_data:
+            job = json.loads(job_data)
+            if project_id is None or job["project_id"] == project_id:
+                # 處理 results 字段
+                if job.get("results") is not None:
+                    results = job["results"]
+                    if isinstance(results, list):
+                        # 如果結果是嵌套列表，取第一個元素
+                        if results and isinstance(results[0], list):
+                            job["results"] = results[0]
+                        else:
+                            job["results"] = results
+                    else:
+                        job["results"] = [results]
+                jobs.append(JobStatus(**job))
+                
+                # 如果啟用了清理，刪除已完成的任務記錄
+                if clean_old and job["status"] in ["completed", "failed"]:
+                    redis_conn.delete(key)
+                    logger.info(f"已清理任務: {job['job_id']}")
+    
+    return jobs
 
 @app.delete("/api/v1/rag/{job_id}")
 async def delete_job(job_id: str):
