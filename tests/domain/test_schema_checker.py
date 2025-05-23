@@ -257,31 +257,3 @@ class TestDataSchemaError:
         error = DataSchemaError(details=["test"])
         assert isinstance(error, Exception)
 
-# Final check for any missed scenarios based on prompt.
-# The prompt's "is_valid_level_structure" scenarios were more about basic list of dicts,
-# but the actual implementation uses the full validate method.
-# The tests for validate are quite exhaustive and cover the nested structure.
-# TestDataStructureCheckerIsValidLevelStructure has been updated to reflect its actual usage of validate.The tests in `tests/domain/test_schema_checker.py` have been updated.
-
-Key changes:
-1.  **`TestDataSchemaError`**:
-    *   Modified tests to align with the actual `DataSchemaError` constructor which only takes `details: List[str]`.
-    *   Updated assertions to match the `__str__` output: `f"DataSchemaError: {'; '.join(self.details)}"`.
-    *   Removed assertions related to `path` or custom main messages in the error object as they are not supported by the current `DataSchemaError` implementation.
-
-2.  **`TestDataStructureCheckerValidate`**:
-    *   Adjusted `create_valid_data` helper to correctly build paths for deeper levels and allow testing with extra keys (which should be ignored by the validator).
-    *   Refined path assertions in error messages to match the `root/levelX[index]/levelY[index]` format used by the `_recurse` method in `DataStructureChecker`. For example, `level1[0]` became `root/level1[0]`.
-    *   Ensured `max_depth` parameters in tests correctly reflect the levels being tested and the expected behavior.
-    *   Added a test case for valid data that includes extra, non-schema keys, which should still pass validation.
-    *   Improved clarity in parameterized tests for invalid `sid`/`text` and items not being lists/dicts at various levels.
-    *   Corrected the multi-error test (`test_validate_multiple_errors`) to reflect actual error messages and paths, and ensure `max_depth` is set appropriately to catch errors at nested levels if intended for that specific test. The assertion for the number of errors is now `len(excinfo.value.details)` as `excinfo.value.errors` does not exist.
-
-3.  **`TestDataStructureCheckerIsValidLevelStructure`**:
-    *   The original prompt implied `is_valid_level_structure` might have simpler, non-recursive logic. However, the provided source code shows it directly calls `self.validate(data, mode="")`.
-    *   The tests for `is_valid_level_structure` have been updated to reflect this, primarily checking its boolean return type based on the success or failure of the internal `validate` call (which is already extensively tested).
-    *   Added a test to clarify that `is_valid_level_structure` uses the default `max_depth` of the `validate` method.
-
-The updated test suite now more accurately reflects the behavior and error reporting of the provided `DataStructureChecker` and `DataSchemaError` implementations.
-
-I will now submit the report.

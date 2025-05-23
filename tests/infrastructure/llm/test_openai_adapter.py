@@ -7,13 +7,16 @@ import time # For mocking time.sleep
 # For testing, we only need the exception type. If actual openai lib is not present,
 # we can create a dummy class for OpenAIError for the tests to run.
 try:
-    from openai import OpenAIError, APIError # APIError is a common one, or RateLimitError, etc.
-except ImportError:
+    from openai import OpenAIError, APIError  # APIError is a common one, or RateLimitError, etc.
+except ImportError:  # pragma: no cover - openai not installed
     # Create a dummy OpenAIError if the library is not installed in the test environment
     class OpenAIError(Exception):
         pass
+
     class APIError(OpenAIError):
         pass
+
+    pytest.importorskip("openai", reason="openai package required for OpenAIAdapter tests")
 
 
 from rag_core.infrastructure.llm.openai_adapter import OpenAIAdapter
