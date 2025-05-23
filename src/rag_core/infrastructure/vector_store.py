@@ -39,6 +39,11 @@ class VectorIndex:
         # Ensure default collection exists
         self._ensure_collection(self.default_collection_name)
 
+    @staticmethod
+    def _uid_to_point_id(uid: str) -> str:
+        """Map external uid to the internal Qdrant point id."""
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, uid))
+
     def _ensure_collection(self, collection_name: str):
         """
         確保 collection 存在，若不存在則建立。
@@ -138,8 +143,8 @@ class VectorIndex:
         points: List[PointStruct] = []
         for item in data:
             chunk_uid = item["uid"]  # chunk id
-            # 將業務 ID 轉換為合法的 Qdrant point ID
-            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_uid))
+            # 以固定轉換方式產生 Qdrant point ID
+            point_id = self._uid_to_point_id(chunk_uid)
             vector = self.embedding_manager.generate_embedding(item["text"])
             payload = dict(item)     # 包含 orig_sid, group_uid, side, text, ...
             points.append(PointStruct(id=point_id, vector=vector, payload=payload))
@@ -265,9 +270,10 @@ class VectorIndex:
             payload["uid"] = uid
             payload.setdefault("sid", uid)
             payload.setdefault("group_uid", new_meta.get("group_uid", ""))
+            point_id = self._uid_to_point_id(uid)
             self.qdrant_client.upsert(
                 collection_name=collection_name,
-                points=[PointStruct(id=uid, vector=vector, payload=payload)]
+                points=[PointStruct(id=point_id, vector=vector, payload=payload)]
             )
             log_wrapper.info(
                 "VectorIndex",
@@ -287,9 +293,10 @@ class VectorIndex:
         """
         try:
             # 使用 retrieve 直接依 ID 取得點
+            point_id = self._uid_to_point_id(uid)
             points = self.qdrant_client.retrieve(
                 collection_name=collection_name,
-                ids=[uid]
+                ids=[point_id]
             )
             return [{
                 "uid": point.payload.get("sid", point.id),
