@@ -28,4 +28,6 @@ class TokenCounter:
             return text
         enc = TokenCounter._get_encoder(model)
         tokens = enc.encode(text)
+        if len(tokens) <= max_tokens:
+            return text
         return enc.decode(tokens[:max_tokens])

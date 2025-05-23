@@ -1,11 +1,14 @@
 import os
 import sys
 
-# Ensure the src directory is on sys.path for tests
-PROJECT_ROOT = os.path.dirname(os.path.dirname(__file__))
+# Ensure the project root is on sys.path for tests
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 SRC_PATH = os.path.join(PROJECT_ROOT, 'src')
 if SRC_PATH not in sys.path:
     sys.path.insert(0, SRC_PATH)
+print('conftest loaded, paths added:', PROJECT_ROOT, SRC_PATH)
 
 # Provide a simple stub for the tiktoken package used in token counting
 import types
@@ -39,7 +42,14 @@ if 'loguru' not in sys.modules:
 
 # Stubs for external libraries not installed in the test environment
 if 'pydantic_settings' not in sys.modules:
-    from pydantic import BaseSettings as _PydanticBaseSettings
+    try:  # Prefer the real package if available
+        from pydantic_settings import BaseSettings as _PydanticBaseSettings  # type: ignore
+    except Exception:
+        try:
+            from pydantic import BaseSettings as _PydanticBaseSettings  # Pydantic <2.0
+        except Exception:  # pragma: no cover - fallback when BaseSettings missing
+            from pydantic import BaseModel as _PydanticBaseSettings
+
     pyd_stub = types.ModuleType('pydantic_settings')
 
     class BaseSettings(_PydanticBaseSettings):
@@ -113,3 +123,56 @@ if 'yaml' not in sys.modules:
     yaml_stub.safe_load = safe_load
     yaml_stub.dump = dump
     sys.modules['yaml'] = yaml_stub
+
+# ---------------------------------------------------------------------------
+# Fallback implementation of the 'mocker' fixture normally provided by
+# the pytest-mock plugin. This minimal version supports the patch helpers
+# commonly used throughout the tests.
+
+import pytest
+from unittest.mock import patch, MagicMock
+
+
+class _SimpleMocker:
+    """Minimal mocker with patch helpers."""
+
+    def __init__(self):
+        self._patches = []
+
+        class _PatchProxy:
+            def __init__(self, outer):
+                self._outer = outer
+
+            def __call__(self, target, *args, **kwargs):
+                p = patch(target, *args, **kwargs)
+                obj = p.start()
+                self._outer._patches.append(p)
+                return obj
+
+            def object(self, target, attribute, *args, **kwargs):
+                p = patch.object(target, attribute, *args, **kwargs)
+                obj = p.start()
+                self._outer._patches.append(p)
+                return obj
+
+            def dict(self, in_dict, values, **kwargs):
+                p = patch.dict(in_dict, values, **kwargs)
+                obj = p.start()
+                self._outer._patches.append(p)
+                return obj
+
+        self.patch = _PatchProxy(self)
+        self.Mock = MagicMock
+        self.MagicMock = MagicMock
+
+    def stopall(self):
+        for p in reversed(self._patches):
+            p.stop()
+        self._patches.clear()
+
+
+@pytest.fixture
+def mocker():
+    sm = _SimpleMocker()
+    yield sm
+    sm.stopall()

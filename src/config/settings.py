@@ -9,7 +9,7 @@ from functools import lru_cache
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
-class APIKeysConfig(BaseModel):
+class APIKeysConfig(BaseSettings):
     """API Keys 相關設定"""
     openai: str = Field(default="", env="OPENAI_API_KEY")
     # 可以加入其他 API keys
@@ -19,7 +19,7 @@ class APIKeysConfig(BaseModel):
         env_file_encoding = "utf-8"
 
 
-class SystemConfig(BaseModel):
+class SystemConfig(BaseSettings):
     """系統相關設定"""
     is_debug: bool = Field(default=False, alias="IS_DEBUG")
     log_dir: str = Field(default="logs", alias="LOG_DIR")
@@ -27,7 +27,7 @@ class SystemConfig(BaseModel):
     error_log_file_path: str = Field(default="error.log", alias="ERROR_LOG_FILE_PATH")
 
 
-class LLMConfig(BaseModel):
+class LLMConfig(BaseSettings):
     """LLM 相關設定"""
     model: str = Field(default="gpt-4o", alias="LLM_MODEL")
     temperature: float = Field(default=0.0, alias="LLM_TEMPERATURE")
@@ -35,25 +35,25 @@ class LLMConfig(BaseModel):
     max_prompt_tokens: int = Field(default=8000)
 
 
-class VectorDBConfig(BaseModel):
+class VectorDBConfig(BaseSettings):
     """向量資料庫相關設定"""
     url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
     collection: str = Field(default="my_rag_collection", alias="QDRANT_COLLECTION")
     vector_size: int = Field(default=1536)
 
 
-class ThreadPoolConfig(BaseModel):
+class ThreadPoolConfig(BaseSettings):
     """執行緒池相關設定"""
     vector_pool: int = Field(default=8, alias="VECTOR_POOL")
     embed_pool: int = Field(default=8, alias="EMBED_POOL")
 
 
-class EmbeddingConfig(BaseModel):
+class EmbeddingConfig(BaseSettings):
     """Embedding 相關設定"""
     model: str = Field(default="text-embedding-ada-002", alias="EMBED_MODEL")
 
 
-class ScenarioConfig(BaseModel):
+class ScenarioConfig(BaseSettings):
     role_desc: str = ""
     reference_desc: str = ""
     input_desc: str = ""
@@ -67,9 +67,9 @@ class ScenarioConfig(BaseModel):
     chunk_size: int = 0
     scoring_rule: str = ""
     llm_name: Optional[str] = None
-    reference_json: Optional[str] = None
-    input_json: Optional[str] = None
-    output_json: Optional[str] = None
+    reference_json: Optional[str] = Field(default=None, env="SCENARIO_REFERENCE_JSON")
+    input_json: Optional[str] = Field(default=None, env="SCENARIO_INPUT_JSON")
+    output_json: Optional[str] = Field(default=None, env="SCENARIO_OUTPUT_JSON")
 
     def __init__(self, **data):
         super().__init__(**data)

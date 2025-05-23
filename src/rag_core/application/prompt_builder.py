@@ -49,13 +49,12 @@ class PromptBuilder:
             f"{json.dumps(example_json, ensure_ascii=False, indent=2)}\n"
             "─────────────────────────\n"
             "==== user_query ====\n"
-            f"{user_query}\n"
-            "==== Candidates ====\n"
         )
 
-        used_tok = TokenCounter.count(header, llm_model)
-        # 預先加入一個換行符號的 token 計數
-        used_tok += TokenCounter.count("\n", llm_model)
+        used_tok = TokenCounter.count(llm_model, header)
+        used_tok += TokenCounter.count(llm_model, user_query)
+        used_tok += TokenCounter.count(llm_model, "\n")  # newline after query
+        header += f"{user_query}\n==== Candidates ====\n"
         if used_tok >= max_tok:
             raise PromptTooLongError(
                 f"Header+Query 已 {used_tok} tokens (> {max_tok})"
@@ -67,18 +66,19 @@ class PromptBuilder:
         sorted_docs = sorted(context_docs, key=lambda d: -d.get("score", 0.0))
 
         for i, doc in enumerate(sorted_docs, 1):
-            line = f"[Cand#{i}] uid={doc['uid']} score={doc.get('score', 0):.3f}\n{doc['text']}\n"
-            line_tok = TokenCounter.count(line, llm_model)
+            line = f"[Cand#{i}] uid={doc['uid']} score={doc.get('score', 0):.3f}\n{doc['text']}"
+            line_tok = TokenCounter.count(llm_model, line)
+            newline_tok = TokenCounter.count(llm_model, "\n")
 
-            if used_tok + line_tok > max_tok:
+            if used_tok + line_tok + newline_tok > max_tok:
                 log_wrapper.info(
                     "PromptBuilder",
                     "build_prompt",
                     f"Prompt token budget({max_tok}) 用盡，僅保留 {i - 1} / {len(sorted_docs)} 個 Candidates"
                 )
                 break
-            cand_lines.append(line)
-            used_tok += line_tok
+            cand_lines.append(line + "\n")
+            used_tok += line_tok + newline_tok
 
         if not cand_lines:
             raise PromptTooLongError("沒有任何 Candidate 能放進 prompt，請降低 rag_k 或放寬 token 限制")

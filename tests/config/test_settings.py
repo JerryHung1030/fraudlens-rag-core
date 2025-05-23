@@ -77,7 +77,7 @@ class TestSettingsClass:
         importlib.reload(src.config.settings)
         s = src.config.settings.Settings()
         
-        assert s.llm.model == "gpt-4-1106-preview" # Example default
+        assert s.llm.model == "gpt-4o" # Example default
         assert s.vector_db.url == "http://localhost:6333" # Example default
         assert s.system.is_debug is False # Example default
 

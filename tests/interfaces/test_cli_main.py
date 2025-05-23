@@ -3,6 +3,8 @@ import json
 import os
 from unittest.mock import MagicMock, mock_open, patch
 
+pytest.importorskip("openai", reason="openai package required for CLI tests")
+
 # Import the functions to be tested from cli_main
 from src.interfaces.cli_main import load_json_file, setup_core
 

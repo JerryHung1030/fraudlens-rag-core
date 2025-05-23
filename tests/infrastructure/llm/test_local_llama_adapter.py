@@ -58,7 +58,7 @@ class TestLocalLlamaAdapterStreamResponse:
 
 @pytest.mark.asyncio
 class TestLocalLlamaAdapterAsyncGenerateResponse:
-    def test_async_generate_successful_execution(self, adapter_instance, mocker):
+    async def test_async_generate_successful_execution(self, adapter_instance, mocker):
         """
         Scenario 1 (async generate): Successful execution.
         Mocks the synchronous adapter.generate_response.
@@ -76,7 +76,7 @@ class TestLocalLlamaAdapterAsyncGenerateResponse:
         mock_sync_generate.assert_called_once_with(prompt)
         assert result == custom_sync_output
 
-    def test_async_generate_exception_from_sync_method(self, adapter_instance, mocker):
+    async def test_async_generate_exception_from_sync_method(self, adapter_instance, mocker):
         """
         Scenario 2 (async generate): Exception from sync method.
         Mocks adapter.generate_response to raise RuntimeError.
@@ -94,7 +94,7 @@ class TestLocalLlamaAdapterAsyncGenerateResponse:
 
 @pytest.mark.asyncio
 class TestLocalLlamaAdapterAsyncStreamResponse:
-    def test_async_stream_successful_stream(self, adapter_instance, mocker):
+    async def test_async_stream_successful_stream(self, adapter_instance, mocker):
         """
         Scenario 1 (async stream): Successful stream.
         Mocks adapter.stream_response.
@@ -112,7 +112,7 @@ class TestLocalLlamaAdapterAsyncStreamResponse:
         mock_sync_stream.assert_called_once_with(prompt)
         assert result_chunks == custom_sync_parts
 
-    def test_async_stream_exception_from_sync_method_during_iteration(self, adapter_instance, mocker):
+    async def test_async_stream_exception_from_sync_method_during_iteration(self, adapter_instance, mocker):
         """
         Scenario 2 (async stream): Exception from sync stream method (raised during iteration).
         """
