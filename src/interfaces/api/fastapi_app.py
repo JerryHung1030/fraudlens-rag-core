@@ -1,4 +1,4 @@
-# src/rag_facade.py
+# fastapi_app.py - FastAPI interface for queuing RAG jobs
 
 import uuid
 from typing import Dict, Any
