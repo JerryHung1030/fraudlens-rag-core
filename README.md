@@ -127,8 +127,8 @@ $ echo "OPENAI_API_KEY=your-api-key-here" > .env
 
 ```bash
 # 1⃣  Clone
-$ git clone https://github.com/your-org/scamshield-ai.git
-$ cd scamshield-ai
+$ git clone https://github.com/your-org/RAGCore-X.git
+$ cd RAGCore-X
 
 # 2⃣  Create venv
 $ python -m venv .venv && source .venv/bin/activate
