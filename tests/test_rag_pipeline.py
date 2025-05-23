@@ -2,12 +2,12 @@
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
-from services.rag_engine import RAGEngine
-from services.scenario import Scenario
-from managers.llm_manager import LLMManager
-from managers.embedding_manager import EmbeddingManager
-from managers.vector_index import VectorIndex
-from managers.data_structure_checker import DataStructureChecker
+from rag_core.application.rag_engine import RAGEngine
+from rag_core.domain.scenario import Scenario
+from rag_core.infrastructure.llm.llm_manager import LLMManager
+from rag_core.infrastructure.embedding import EmbeddingManager
+from rag_core.infrastructure.vector_store import VectorIndex
+from rag_core.domain.schema_checker import DataStructureChecker
 
 
 @pytest.mark.asyncio
