@@ -4,8 +4,8 @@ import pytest
 import random
 import string
 
-from managers.embedding_manager import EmbeddingManager
-from managers.vector_index import VectorStoreManager
+from rag_core.infrastructure.embedding import EmbeddingManager
+from rag_core.infrastructure.vector_store import VectorIndex as VectorStoreManager
 
 
 @pytest.fixture(scope="session")
