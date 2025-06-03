@@ -35,7 +35,7 @@ class RAGJobRunner:
         self.vector_index = vector_index
         self.rag_engine = rag_engine
         self.settings = config_manager.settings
-        self._semaphore = asyncio.Semaphore(10)  # 限制並發數為3
+        self._semaphore = asyncio.Semaphore(1)  # 限制文檔處理並發數
 
     async def _validate_data(self, data: Dict[str, Any], mode: str) -> None:
         """驗證數據結構"""

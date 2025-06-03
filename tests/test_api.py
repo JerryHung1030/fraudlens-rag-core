@@ -4,28 +4,14 @@ import time
 import asyncio
 import aiohttp
 from datetime import datetime
+from config.settings import config_manager
 
 BASE_URL = "http://localhost:8000/api/v1"
 
 async def create_rag_job(session, project_id, input_text, ref_text, scenario=None):
     """創建單個 RAG 任務"""
-    # 預設的 scenario 配置
-    default_scenario = {
-        "direction": "forward",
-        "role_desc": "你是RAG助手，負責比較文本相似度",
-        "reference_desc": "Reference 為參考文本，用於比對",
-        "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
-        "rag_k": 3,
-        "rag_k_forward": 3,
-        "rag_k_reverse": 3,
-        "cof_threshold": 0.5,
-        "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段",
-        "llm_name": "openai",
-        "reference_depth": 1,
-        "input_depth": 1,
-        "chunk_size": 0,
-        "max_prompt_tokens": 8000
-    }
+    # 從 config_manager 獲取默認設定
+    default_scenario = config_manager.get_scenario_config()
     
     test_data = {
         "project_id": project_id,
@@ -95,7 +81,11 @@ async def test_concurrent_rag():
             "scenario": {
                 "direction": "both",
                 "rag_k": 3,
-                "cof_threshold": 0.7
+                "cof_threshold": 0.7,
+                "role_desc": "你是RAG助手，負責比較文本相似度",
+                "reference_desc": "Reference 為參考文本，用於比對",
+                "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
+                "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段"
             }
         },
         {

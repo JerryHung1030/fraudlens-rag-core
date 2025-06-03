@@ -1,0 +1,279 @@
+### 環境變數
+@baseUrl = http://localhost:8000/api/v1
+@projectId = test_project_1
+
+### 測試 Case 1: 請求資料格式不符合
+# 無效的方向值和數字類型
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "scenario": {
+        "direction": "invalid_direction",
+        "rag_k": "not_a_number"
+    },
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 測試 Case 2: 系統資源不足
+# 需要先設置較小的信號量值來觸發此錯誤
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 測試 Case 3: 任務 ID 重複
+# 步驟 1: 創建第一個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "test_project_1",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "第一個任務的輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "第一個任務的參考文本"
+            }
+        ]
+    }
+}
+
+### 測試 Case 3: 任務 ID 重複
+# 步驟 2: 使用相同的 job_id 創建第二個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "test_project_2",
+    "job_id": "9fce80a9-86b2-4637-b9c6-6492f7e02aa7",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_2",
+                "text": "第二個任務的輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_2",
+                "text": "第二個任務的參考文本"
+            }
+        ]
+    }
+}
+
+### 測試任務狀態查詢 API
+
+### 測試 Case 1: 任務不存在
+GET {{baseUrl}}/rag/non_existent_job_id/status
+
+### 測試 Case 2: 任務已過期
+# 先創建一個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "expired_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 等一分鐘後然後查詢這個任務的狀態
+GET {{baseUrl}}/rag/57983868-d517-4111-8b70-09f665e0fee5/status
+
+### 測試 Case 3: 任務獲取狀態超時
+# 創建一個任務並立即查詢其狀態
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "timeout_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 立即查詢狀態（應該會超時）
+GET {{baseUrl}}/rag/3eb219b6-712a-4ebd-9ff7-ad748e024cec/status
+
+
+
+### 測試查詢所有專案 API
+
+### 測試 Case 1: 無效的專案 ID
+GET {{baseUrl}}/rag?project_id=invalid@project
+
+### 測試 Case 2: 清理已完成的任務
+GET {{baseUrl}}/rag?clean_old=true
+
+### 測試 Case 3: 查詢特定專案的任務
+GET {{baseUrl}}/rag?project_id={{projectId}}
+
+### 測試 Case 4: 查詢所有任務
+GET {{baseUrl}}/rag
+
+### 測試任務結果查詢 API
+
+### 測試 Case 1: 任務不存在
+GET {{baseUrl}}/rag/non_existent_job_id/result
+
+### 測試 Case 2: 任務已過期
+# 先創建一個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "expired_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 等一分鐘後然後查詢這個任務的結果
+GET {{baseUrl}}/rag/24491db1-9eb4-448d-a0eb-12fb7caedd3e/result
+
+### 測試 Case 3: 任務獲取結果超時
+# 創建一個任務並立即查詢其結果
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "timeout_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 立即查詢結果（應該會超時）
+GET {{baseUrl}}/rag/55b8f47f-e69b-424a-a1b3-1c291ef5ba52/result
+
+### 正常請求測試
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "scenario": {
+        "direction": "forward",
+        "rag_k": 3,
+        "cof_threshold": 0.7,
+        "role_desc": "你是RAG助手，負責比較文本相似度",
+        "reference_desc": "Reference 為參考文本，用於比對",
+        "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
+        "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段"
+    },
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
