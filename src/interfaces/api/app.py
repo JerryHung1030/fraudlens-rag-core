@@ -47,7 +47,7 @@ redis_conn.delete(RUNNING_JOBS_KEY)
 logger.info("已清理運行中的任務集合")
 
 # 添加任務過期時間設定（改為 1 分鐘）
-JOB_EXPIRY_HOURS = 1/60  # 1 分鐘
+JOB_EXPIRY_HOURS = 5/60  # 1 分鐘
 # 添加任務狀態查詢超時設定（改為 5 秒）
 JOB_STATUS_TIMEOUT = 5
 

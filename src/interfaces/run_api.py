@@ -1,20 +1,22 @@
 import os
 import sys
+from pathlib import Path
+
+# 添加專案根目錄到 Python 路徑
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
+
+# 設置環境變數
+os.environ["PYTHONPATH"] = str(project_root) + ":" + str(project_root / "src")
+os.environ["RAG_CONFIG_PATH"] = str(project_root / "config")
+
 import uvicorn
 import subprocess
 import signal
 import time
 from typing import Optional
 import threading
-from pathlib import Path
-
-# 添加專案根目錄到 Python 路徑
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
-
-# 設置環境變數
-os.environ["PYTHONPATH"] = str(project_root)
-os.environ["RAG_CONFIG_PATH"] = str(project_root / "config")
 
 def print_output(pipe, prefix):
     """打印進程輸出"""
@@ -28,7 +30,7 @@ def start_rq_worker():
     
     # 設置環境變數
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(project_root)
+    env["PYTHONPATH"] = str(project_root) + ":" + str(project_root / "src")
     env["RAG_CONFIG_PATH"] = str(project_root / "config")
     
     worker_cmd = [
@@ -36,6 +38,7 @@ def start_rq_worker():
         "--path", worker_path,
         "--name", "rag_worker",
         "--verbose",
+        "--url", "redis://localhost:6379/0",
         "rag_jobs"
     ]
     

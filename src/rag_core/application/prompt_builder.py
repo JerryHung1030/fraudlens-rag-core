@@ -33,7 +33,7 @@ class PromptBuilder:
         example_json = [{
             "input_uid": "INPUT_UID", "input_text": "INPUT_TEXT",
             "ref_uid": "REF_UID", "ref_text": "REF_TEXT",
-            "evidences": ["keyword1"], "start_end_idx": [[0, 3]],
+            "evidences": ["Key sentences1 from input_text"], "start_end_idx": [[0, 3]],
             "confidence": 0.9
         }]
 
