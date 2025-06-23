@@ -21,5 +21,12 @@ setup(
         "langchain-core>=0.3.59",
         "langchain-openai>=0.3.16",
         "langchain-qdrant>=0.2.0",
+        "click>=8.2.0",
+        "requests>=2.32.3",
     ],
+    entry_points={
+        'console_scripts': [
+            'ragcore=rag_core.cli:cli',
+        ],
+    },
 ) 

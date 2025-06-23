@@ -3,7 +3,7 @@ import json
 from typing import List, Dict, Any, Tuple
 from rag_core.utils.token_counter import TokenCounter
 from rag_core.exceptions import PromptTooLongError
-from utils import log_wrapper
+from utils.logging import log_wrapper
 
 
 class PromptBuilder:

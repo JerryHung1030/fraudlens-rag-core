@@ -1,6 +1,7 @@
 # src/adapters/base_adapter.py
 from typing import AsyncGenerator
-from utils import log_wrapper
+from abc import ABC, abstractmethod
+from utils.logging import log_wrapper
 
 
 class LLMAdapter:

@@ -37,7 +37,7 @@ from rag_core.infrastructure.llm.openai_adapter import OpenAIAdapter
 from rag_core.infrastructure.llm.local_llama_adapter import LocalLlamaAdapter
 from rag_core.utils.text_preprocessor import TextPreprocessor
 from config.settings import config_manager
-from utils import log_wrapper
+from utils.logging import log_wrapper
 
 
 # ═════════════════════════════════════════════════════════════════════════════

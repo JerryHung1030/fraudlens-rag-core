@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from loguru import logger
 from config.settings import config_manager
 
@@ -11,31 +12,44 @@ class log_wrapper:
     settings = config_manager.settings.system
     IS_DEBUG = settings.is_debug
 
-    # 設定日誌路徑
-    log_dir = os.sep.join(settings.log_dir.split('/'))
-    LOG_FILE_PATH = os.path.join(log_dir, settings.log_file_path)
-    ERROR_LOG_FILE_PATH = os.path.join(log_dir, settings.error_log_file_path)
-
+    # 設定日誌路徑 - 使用絕對路徑
+    # 獲取專案根目錄（假設 src/utils/logging.py 在專案結構中）
+    current_file = os.path.abspath(__file__)
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+    log_dir = os.path.join(project_root, settings.log_dir)
+    
     # 建立目錄
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
 
+    # 生成包含日期的文件名
+    today = datetime.now().strftime("%Y-%m-%d")
+    base_name = settings.log_file_path.replace('.log', '')
+    error_base_name = settings.error_log_file_path.replace('.log', '')
+    
+    log_file_path = os.path.join(log_dir, f"{base_name}_{today}.log")
+    error_log_file_path = os.path.join(log_dir, f"{error_base_name}_{today}.log")
+
     # 設定一般 log
     logger.add(
-        LOG_FILE_PATH,
+        log_file_path,
         level='DEBUG',
-        rotation='00:00',  # 每日 00:00 自動 rotate
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {message}",
         enqueue=True,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {message}"
+        rotation="10 MB",
+        retention="30 days",
+        compression="zip"
     )
 
     # 設定錯誤 log
     logger.add(
-        ERROR_LOG_FILE_PATH,
+        error_log_file_path,
         level='ERROR',
-        rotation='00:00',
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {message}",
         enqueue=True,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {message}"
+        rotation="5 MB",
+        retention="30 days",
+        compression="zip"
     )
 
     @staticmethod

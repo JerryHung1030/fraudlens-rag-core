@@ -7,7 +7,6 @@ from typing import List, Optional, Set
 from rq import Queue
 from redis import Redis
 import json
-import logging
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -26,10 +25,7 @@ from qdrant_client import QdrantClient
 from rag_core.infrastructure.llm.llm_manager import LLMManager
 from rag_core.infrastructure.llm.openai_adapter import OpenAIAdapter
 from rag_core.infrastructure.llm.local_llama_adapter import LocalLlamaAdapter
-
-# 設置日誌
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from utils.logging import log_wrapper
 
 # --- 專案內部 import ----------------------------------------------------------
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -44,7 +40,7 @@ RUNNING_JOBS_KEY = "running_rag_jobs"
 
 # 清理運行中的任務集合
 redis_conn.delete(RUNNING_JOBS_KEY)
-logger.info("已清理運行中的任務集合")
+log_wrapper.info("app", "startup", "已清理運行中的任務集合")
 
 # 添加任務過期時間設定（改為 1 分鐘）
 JOB_EXPIRY_HOURS = 5/60  # 1 分鐘
@@ -68,13 +64,13 @@ class JobTracker:
         async with self._lock:
             redis_conn.sadd(RUNNING_JOBS_KEY, job_id)
             running_jobs = redis_conn.smembers(RUNNING_JOBS_KEY)
-            logger.info(f"Started job {job_id}. Current running jobs: {len(running_jobs)}")
+            log_wrapper.info("JobTracker", "start_job", f"Started job {job_id}. Current running jobs: {len(running_jobs)}")
 
     async def finish_job(self, job_id: str) -> None:
         async with self._lock:
             redis_conn.srem(RUNNING_JOBS_KEY, job_id)
             running_jobs = redis_conn.smembers(RUNNING_JOBS_KEY)
-            logger.info(f"Finished job {job_id}. Current running jobs: {len(running_jobs)}")
+            log_wrapper.info("JobTracker", "finish_job", f"Finished job {job_id}. Current running jobs: {len(running_jobs)}")
 
 # 創建任務追蹤器
 job_tracker = JobTracker(max_concurrent_jobs=1)
@@ -100,10 +96,11 @@ async def startup_event():
     """服務啟動時的事件處理"""
     # 清理運行中的任務集合
     redis_conn.delete(RUNNING_JOBS_KEY)
-    logger.info("服務啟動：已清理運行中的任務集合")
+    log_wrapper.info("app", "startup_event", "服務啟動：已清理運行中的任務集合")
 
 # 初始化核心元件
 def setup_core():
+    log_wrapper.info("app", "setup_core", "開始初始化核心元件")
     settings = config_manager.settings
 
     # Embedding
@@ -149,7 +146,8 @@ def setup_core():
 
     # RAGEngine
     rag_engine = RAGEngine(embed_mgr, vec_index, llm_mgr)
-
+    
+    log_wrapper.info("app", "setup_core", "核心元件初始化完成")
     return RAGJobRunner(vec_index, rag_engine)
 
 # 全域 RAG 執行器
@@ -185,86 +183,79 @@ def update_job_status(job_id: str, status: str, results: Optional[list] = None, 
                 job["failed_at"] = datetime.utcnow().isoformat()
                 
             redis_conn.set(job_key, json.dumps(job))
-            logger.info(f"已更新任務 {job_id} 狀態為 {status}")
+            log_wrapper.info("app", "update_job_status", f"已更新任務 {job_id} 狀態為 {status}")
             
             # 如果任務完成或失敗，從運行中的任務集合中移除
             if status in ["completed", "failed"]:
                 redis_conn.srem(RUNNING_JOBS_KEY, job_id)
-                logger.info(f"已從運行中的任務集合中移除任務 {job_id}")
+                log_wrapper.info("app", "update_job_status", f"已從運行中的任務集合中移除任務 {job_id}")
     except Exception as e:
-        logger.error(f"更新任務狀態失敗: {str(e)}")
+        log_wrapper.error("app", "update_job_status", f"更新任務狀態失敗: {str(e)}")
 
 def process_rag_job(job_payload: dict) -> dict:
     """處理 RAG 任務的函數，用於 RQ worker"""
     job_id = None
     try:
-        # 將 JSON 字串轉換回 Python 物件
+        # 解析任務參數
         if isinstance(job_payload, str):
-            logger.info("解析 JSON 字串...")
             job_payload = json.loads(job_payload)
-            
-        job_id = job_payload.get('job_id')
-        logger.info(f"開始處理任務: {job_id}")
-            
-        # 從 rag_core.domain.scenario 導入 Scenario
-        from rag_core.domain.scenario import Scenario
         
-        # 將 scenario 字典轉換為 Scenario 物件
-        scenario_data = job_payload.get("scenario", {})
-        if isinstance(scenario_data, dict):
-            logger.info("轉換 scenario 為 Scenario 物件...")
-            scenario = Scenario(**scenario_data)
-            # 使用 dict() 方法將 Scenario 物件轉換回字典
-            job_payload["scenario"] = scenario.dict()
-            
-        logger.info("執行 RAG 任務...")
-        # 創建新的事件循環
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        job_id = job_payload["job_id"]
+        project_id = job_payload["project_id"]
+        scenario = job_payload["scenario"]
+        input_data = job_payload["input_data"]
+        reference_data = job_payload["reference_data"]
+        callback_url = job_payload.get("callback_url")
         
-        try:
-            # 執行 RAG 任務
-            result = loop.run_until_complete(rag_runner.run_job(job_payload))
-            logger.info(f"任務完成: {job_id}")
-            
-            # 更新任務狀態
-            update_job_status(
-                job_id=job_id,
-                status="completed",
-                results=result.get("results")
-            )
-            
-            # 標記任務為已完成
-            redis_conn.srem(RUNNING_JOBS_KEY, job_id)
-            logger.info(f"Finished job {job_id}. Current running jobs: {len(redis_conn.smembers(RUNNING_JOBS_KEY))}")
-            
-            return result
-        finally:
-            loop.close()
-            
+        log_wrapper.info("process_rag_job", "start", f"開始處理任務 {job_id}，專案: {project_id}")
+        
+        # 更新任務狀態為運行中
+        update_job_status(job_id, "running")
+        
+        # 執行 RAG 任務
+        results = rag_runner.run_rag_job(
+            project_id=project_id,
+            scenario=scenario,
+            input_data=input_data,
+            reference_data=reference_data
+        )
+        
+        # 更新任務狀態為完成
+        update_job_status(job_id, "completed", results=results)
+        log_wrapper.info("process_rag_job", "complete", f"任務 {job_id} 處理完成")
+        
+        return {"status": "success", "results": results}
+        
     except Exception as e:
-        logger.error(f"任務處理失敗: {str(e)}")
+        log_wrapper.error("process_rag_job", "error", f"任務 {job_id} 處理失敗: {str(e)}")
         # 更新任務狀態為失敗
-        if job_id:
-            update_job_status(
-                job_id=job_id,
-                status="failed",
-                error=str(e)
-            )
-            # 標記任務為已完成
-            redis_conn.srem(RUNNING_JOBS_KEY, job_id)
-            logger.info(f"Finished job {job_id}. Current running jobs: {len(redis_conn.smembers(RUNNING_JOBS_KEY))}")
+        update_job_status(
+            job_id=job_id,
+            status="failed",
+            error=str(e)
+        )
+        # 標記任務為已完成
+        redis_conn.srem(RUNNING_JOBS_KEY, job_id)
+        log_wrapper.info("process_rag_job", "finish", f"Finished job {job_id}. Current running jobs: {len(redis_conn.smembers(RUNNING_JOBS_KEY))}")
         return {"error": str(e)}
 
+# 新增取得 client IP 的 function
+def get_client_ip(request: Request):
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+    return request.client.host
+
 @app.post("/api/v1/rag", response_model=RAGResponse)
-async def create_rag_job(request: RAGRequest) -> RAGResponse:
-    """創建新的 RAG 任務"""
+async def create_rag_job(request: Request, body: RAGRequest) -> RAGResponse:
+    client_ip = get_client_ip(request)
     try:
+        log_wrapper.info("create_rag_job", "start", f"IP: {client_ip} | 收到創建任務請求，專案ID: {body.project_id}")
         # 檢查任務 ID 是否已存在
-        job_id = await job_manager.create_job(request.project_id)
+        job_id = await job_manager.create_job(body.project_id)
         job_key = f"rag_job:{job_id}"
-        # job_key = "b905c3e2-4d0f-42aa-bb8b-45d6de8357d8"
         if redis_conn.exists(job_key):
+            log_wrapper.warning("create_rag_job", "duplicate_job", f"IP: {client_ip} | 任務 ID {job_id} 已存在 | HTTP 409")
             raise HTTPException(
                 status_code=409,
                 detail={
@@ -272,9 +263,8 @@ async def create_rag_job(request: RAGRequest) -> RAGResponse:
                     "message_eng": "Job ID already exists, please use a different ID"
                 }
             )
-
-        # 檢查是否可以開始新任務
         if not await job_tracker.can_start_job():
+            log_wrapper.warning("create_rag_job", "resource_exhausted", f"IP: {client_ip} | 系統資源不足以創建新任務 | HTTP 503")
             raise HTTPException(
                 status_code=503,
                 detail={
@@ -282,28 +272,20 @@ async def create_rag_job(request: RAGRequest) -> RAGResponse:
                     "message_eng": "System resources exhausted"
                 }
             )
-
-        # 獲取默認的 scenario 設定
         default_scenario = config_manager.get_scenario_config()
-        
-        # 合併 scenario 設定
-        scenario_data = request.scenario.dict() if request.scenario else {}
+        scenario_data = body.scenario.dict() if body.scenario else {}
         merged_scenario = {**default_scenario, **scenario_data}
-        
-        # 準備任務參數
         job_payload = {
             "job_id": job_id,
-            "project_id": request.project_id,
+            "project_id": body.project_id,
             "scenario": merged_scenario,
-            "input_data": request.input_data,
-            "reference_data": request.reference_data,
-            "callback_url": request.callback_url
+            "input_data": body.input_data,
+            "reference_data": body.reference_data,
+            "callback_url": body.callback_url
         }
-        
-        # 將任務信息保存到 Redis
         job_data = {
             "job_id": job_id,
-            "project_id": request.project_id,
+            "project_id": body.project_id,
             "status": "pending",
             "progress": None,
             "results": None,
@@ -314,28 +296,21 @@ async def create_rag_job(request: RAGRequest) -> RAGResponse:
             "failed_at": None
         }
         redis_conn.set(job_key, json.dumps(job_data))
-        
-        # 將任務加入 RQ Queue
         job = rag_queue.enqueue(
             process_rag_job,
             json.dumps(job_payload, default=str),
             job_id=job_id
         )
-        logger.info(f"任務已加入佇列: {job_id}")
-        
-        # 標記任務為運行中
+        log_wrapper.info("create_rag_job", "enqueue", f"IP: {client_ip} | 任務 {job_id} 已加入佇列")
         await job_tracker.start_job(job_id)
-        
-        # 返回簡化的初始回應
+        log_wrapper.info("create_rag_job", "success", f"IP: {client_ip} | HTTP 200 | 任務 {job_id} 創建成功")
         return RAGResponse(
             job_id=job_id,
             status="pending",
             created_at=datetime.utcnow()
         )
-            
     except ValueError as e:
-        # 處理請求格式錯誤
-        logger.error(f"請求格式錯誤: {str(e)}")
+        log_wrapper.error("create_rag_job", "validation_error", f"IP: {client_ip} | 請求格式錯誤: {str(e)} | HTTP 400")
         raise HTTPException(
             status_code=400,
             detail={
@@ -344,11 +319,10 @@ async def create_rag_job(request: RAGRequest) -> RAGResponse:
             }
         )
     except HTTPException as e:
-        # 直接重新拋出 HTTPException，保持原始狀態碼
+        log_wrapper.error("create_rag_job", "http_exception", f"IP: {client_ip} | HTTP {e.status_code} | {str(e.detail)}")
         raise e
     except Exception as e:
-        # 處理其他錯誤
-        logger.error(f"創建任務失敗: {str(e)}")
+        log_wrapper.error("create_rag_job", "system_error", f"IP: {client_ip} | 創建任務失敗: {str(e)} | HTTP 500")
         raise HTTPException(
             status_code=500,
             detail={
@@ -358,24 +332,14 @@ async def create_rag_job(request: RAGRequest) -> RAGResponse:
         )
 
 @app.get("/api/v1/rag/{job_id}/status")
-async def get_job_status(job_id: str) -> JSONResponse:
-    """獲取任務狀態
-    
-    Args:
-        job_id: 任務ID
-        
-    Returns:
-        JSONResponse: 任務狀態信息
-        
-    Raises:
-        HTTPException: 當任務不存在、已過期、查詢超時或發生系統錯誤時
-    """
+async def get_job_status(request: Request, job_id: str) -> JSONResponse:
+    client_ip = get_client_ip(request)
     try:
-        # 檢查任務是否存在
+        log_wrapper.info("get_job_status", "start", f"IP: {client_ip} | 查詢任務 {job_id} 狀態")
         job_key = f"rag_job:{job_id}"
         job_data = redis_conn.get(job_key)
-        
         if not job_data:
+            log_wrapper.warning("get_job_status", "not_found", f"IP: {client_ip} | 任務 {job_id} 不存在 | HTTP 404")
             raise HTTPException(
                 status_code=404,
                 detail={
@@ -383,13 +347,10 @@ async def get_job_status(job_id: str) -> JSONResponse:
                     "message_eng": "Job not found"
                 }
             )
-            
-        # 解析任務數據
         job = json.loads(job_data)
-        
-        # 檢查任務是否過期
         created_at = datetime.fromisoformat(job["created_at"])
         if datetime.utcnow() - created_at > timedelta(hours=JOB_EXPIRY_HOURS):
+            log_wrapper.warning("get_job_status", "expired", f"IP: {client_ip} | 任務 {job_id} 已過期 | HTTP 410")
             raise HTTPException(
                 status_code=410,
                 detail={
@@ -397,29 +358,23 @@ async def get_job_status(job_id: str) -> JSONResponse:
                     "message_eng": "Job has expired"
                 }
             )
-            
-        # 使用 asyncio.wait_for 來實現超時控制
         try:
-            # 模擬獲取任務狀態的異步操作
             async def get_status():
-                # 如果是 timeout_test 專案，增加延遲
                 if job.get("project_id") == "timeout_test":
-                    await asyncio.sleep(JOB_STATUS_TIMEOUT + 1)  # 確保超時
+                    await asyncio.sleep(JOB_STATUS_TIMEOUT + 1)
                 else:
-                    await asyncio.sleep(0.1)  # 正常延遲
+                    await asyncio.sleep(0.1)
                 return job
-                
-            # 設置超時
             result = await asyncio.wait_for(get_status(), timeout=JOB_STATUS_TIMEOUT)
-            
+            log_wrapper.info("get_job_status", "success", f"IP: {client_ip} | HTTP 200 | 成功獲取任務 {job_id} 狀態: {job['status']}")
             return JSONResponse(
                 content={
                     "success": True,
                     "data": result
                 }
             )
-            
         except asyncio.TimeoutError:
+            log_wrapper.error("get_job_status", "timeout", f"IP: {client_ip} | 獲取任務 {job_id} 狀態超時 | HTTP 504")
             raise HTTPException(
                 status_code=504,
                 detail={
@@ -427,13 +382,11 @@ async def get_job_status(job_id: str) -> JSONResponse:
                     "message_eng": "Timeout while getting job status"
                 }
             )
-            
     except HTTPException as e:
-        # 直接重新拋出 HTTPException
+        log_wrapper.error("get_job_status", "http_exception", f"IP: {client_ip} | HTTP {e.status_code} | {str(e.detail)}")
         raise e
     except Exception as e:
-        # 處理其他錯誤
-        logger.error(f"獲取任務狀態時發生錯誤: {str(e)}")
+        log_wrapper.error("get_job_status", "system_error", f"IP: {client_ip} | 獲取任務狀態時發生錯誤: {str(e)} | HTTP 500")
         raise HTTPException(
             status_code=500,
             detail={
@@ -443,24 +396,14 @@ async def get_job_status(job_id: str) -> JSONResponse:
         )
 
 @app.get("/api/v1/rag/{job_id}/result")
-async def get_job_result(job_id: str) -> JSONResponse:
-    """獲取任務結果
-    
-    Args:
-        job_id: 任務ID
-        
-    Returns:
-        JSONResponse: 任務結果信息
-        
-    Raises:
-        HTTPException: 當任務不存在、已過期、查詢超時或發生系統錯誤時
-    """
+async def get_job_result(request: Request, job_id: str) -> JSONResponse:
+    client_ip = get_client_ip(request)
     try:
-        # 檢查任務是否存在
+        log_wrapper.info("get_job_result", "start", f"IP: {client_ip} | 查詢任務 {job_id} 結果")
         job_key = f"rag_job:{job_id}"
         job_data = redis_conn.get(job_key)
-        
         if not job_data:
+            log_wrapper.warning("get_job_result", "not_found", f"IP: {client_ip} | 任務 {job_id} 不存在 | HTTP 404")
             raise HTTPException(
                 status_code=404,
                 detail={
@@ -468,13 +411,10 @@ async def get_job_result(job_id: str) -> JSONResponse:
                     "message_eng": "Job not found"
                 }
             )
-            
-        # 解析任務數據
         job = json.loads(job_data)
-        
-        # 檢查任務是否過期
         created_at = datetime.fromisoformat(job["created_at"])
         if datetime.utcnow() - created_at > timedelta(hours=JOB_EXPIRY_HOURS):
+            log_wrapper.warning("get_job_result", "expired", f"IP: {client_ip} | 任務 {job_id} 已過期 | HTTP 410")
             raise HTTPException(
                 status_code=410,
                 detail={
@@ -482,29 +422,23 @@ async def get_job_result(job_id: str) -> JSONResponse:
                     "message_eng": "Job has expired"
                 }
             )
-            
-        # 使用 asyncio.wait_for 來實現超時控制
         try:
-            # 模擬獲取任務結果的異步操作
             async def get_result():
-                # 如果是 timeout_test 專案，增加延遲
                 if job.get("project_id") == "timeout_test":
-                    await asyncio.sleep(JOB_STATUS_TIMEOUT + 1)  # 確保超時
+                    await asyncio.sleep(JOB_STATUS_TIMEOUT + 1)
                 else:
-                    await asyncio.sleep(0.1)  # 正常延遲
+                    await asyncio.sleep(0.1)
                 return job
-                
-            # 設置超時
             result = await asyncio.wait_for(get_result(), timeout=JOB_STATUS_TIMEOUT)
-            
+            log_wrapper.info("get_job_result", "success", f"IP: {client_ip} | HTTP 200 | 成功獲取任務 {job_id} 結果")
             return JSONResponse(
                 content={
                     "success": True,
                     "data": result
                 }
             )
-            
         except asyncio.TimeoutError:
+            log_wrapper.error("get_job_result", "timeout", f"IP: {client_ip} | 獲取任務 {job_id} 結果超時 | HTTP 504")
             raise HTTPException(
                 status_code=504,
                 detail={
@@ -512,13 +446,11 @@ async def get_job_result(job_id: str) -> JSONResponse:
                     "message_eng": "Timeout while getting job status"
                 }
             )
-            
     except HTTPException as e:
-        # 直接重新拋出 HTTPException
+        log_wrapper.error("get_job_result", "http_exception", f"IP: {client_ip} | HTTP {e.status_code} | {str(e.detail)}")
         raise e
     except Exception as e:
-        # 處理其他錯誤
-        logger.error(f"獲取任務結果時發生錯誤: {str(e)}")
+        log_wrapper.error("get_job_result", "system_error", f"IP: {client_ip} | 獲取任務結果時發生錯誤: {str(e)} | HTTP 500")
         raise HTTPException(
             status_code=500,
             detail={
@@ -545,8 +477,11 @@ async def list_jobs(
         HTTPException: 當專案 ID 無效時
     """
     try:
+        log_wrapper.info("list_jobs", "start", f"列出任務，專案ID: {project_id}, 清理舊任務: {clean_old}")
+        
         # 驗證專案 ID 格式
         if project_id and not PROJECT_ID_PATTERN.match(project_id):
+            log_wrapper.warning("list_jobs", "invalid_project_id", f"無效的專案 ID: {project_id}")
             raise HTTPException(
                 status_code=400,
                 detail={
@@ -566,7 +501,7 @@ async def list_jobs(
                 if datetime.utcnow() - created_at > timedelta(hours=JOB_EXPIRY_HOURS):
                     # 如果任務過期，直接刪除
                     redis_conn.delete(key)
-                    logger.info(f"已刪除過期任務: {job['job_id']}")
+                    log_wrapper.info("list_jobs", "delete_expired", f"已刪除過期任務: {job['job_id']}")
                     continue
                     
                 # 檢查任務是否長時間處於 pending 狀態
@@ -576,7 +511,7 @@ async def list_jobs(
                     job["error"] = "任務執行超時"
                     job["failed_at"] = datetime.utcnow().isoformat()
                     redis_conn.set(key, json.dumps(job))
-                    logger.info(f"已標記超時任務為失敗: {job['job_id']}")
+                    log_wrapper.info("list_jobs", "mark_timeout", f"已標記超時任務為失敗: {job['job_id']}")
                 
                 if project_id is None or job["project_id"] == project_id:
                     # 處理 results 字段
@@ -595,8 +530,9 @@ async def list_jobs(
                     # 如果啟用了清理，刪除已完成的任務記錄
                     if clean_old and job["status"] in ["completed", "failed"]:
                         redis_conn.delete(key)
-                        logger.info(f"已清理任務: {job['job_id']}")
+                        log_wrapper.info("list_jobs", "clean_old", f"已清理任務: {job['job_id']}")
         
+        log_wrapper.info("list_jobs", "success", f"成功列出 {len(jobs)} 個任務")
         return jobs
         
     except HTTPException as e:
@@ -604,7 +540,7 @@ async def list_jobs(
         raise e
     except Exception as e:
         # 處理其他錯誤
-        logger.error(f"獲取任務列表時發生錯誤: {str(e)}")
+        log_wrapper.error("list_jobs", "system_error", f"獲取任務列表時發生錯誤: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail={
@@ -616,16 +552,33 @@ async def list_jobs(
 @app.delete("/api/v1/rag/{job_id}")
 async def delete_job(job_id: str):
     """刪除任務"""
-    job = await job_manager.get_job(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
-    # TODO: 實現任務刪除邏輯
-    return {"status": "success", "message": "Job deleted"}
+    try:
+        log_wrapper.info("delete_job", "start", f"刪除任務 {job_id}")
+        
+        job = await job_manager.get_job(job_id)
+        if not job:
+            log_wrapper.warning("delete_job", "not_found", f"任務 {job_id} 不存在")
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        # TODO: 實現任務刪除邏輯
+        log_wrapper.info("delete_job", "success", f"任務 {job_id} 刪除成功")
+        return {"status": "success", "message": "Job deleted"}
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        log_wrapper.error("delete_job", "system_error", f"刪除任務時發生錯誤: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "系統發生問題，請連絡系統管理員",
+                "message_eng": "System problem, please contact administrator"
+            }
+        )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """處理請求驗證錯誤"""
+    client_ip = get_client_ip(request)
     error_messages = []
     for error in exc.errors():
         if error["type"] == "int_parsing":
@@ -636,7 +589,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             error_messages.append(error["msg"])
         else:
             error_messages.append(f"字段 {error['loc'][-1]} 格式錯誤")
-    
+    log_wrapper.error("validation_exception_handler", "validation_error", f"IP: {client_ip} | HTTP 400 | 請求驗證錯誤: {'; '.join(error_messages)}")
     return JSONResponse(
         status_code=400,
         content={

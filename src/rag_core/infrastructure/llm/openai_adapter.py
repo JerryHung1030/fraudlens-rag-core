@@ -1,12 +1,16 @@
 # src/adapters/openai_adapter.py
 import asyncio
-from typing import AsyncGenerator
+import json
+from typing import Dict, Any, List, Optional, AsyncGenerator
 import time
 import random
 
 from openai import OpenAI, OpenAIError
 from .base_adapter import LLMAdapter
-from utils import log_wrapper
+from utils.logging import log_wrapper
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletion
+from openai.types.chat.chat_completion import Choice
 
 
 class OpenAIAdapter(LLMAdapter):
