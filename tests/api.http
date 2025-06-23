@@ -1,0 +1,316 @@
+### 環境變數
+@baseUrl = http://localhost:8000/api/v1
+@projectId = test_project_1
+
+### 測試 Case 1: 請求資料格式不符合
+# 無效的方向值和數字類型
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "scenario": {
+        "direction": "invalid_direction",
+        "rag_k": "not_a_number"
+    },
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 測試 Case 2: 系統資源不足
+# 需要先設置較小的信號量值來觸發此錯誤
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 測試 Case 3: 任務 ID 重複
+# 步驟 1: 創建第一個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "test_project_1",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "第一個任務的輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "第一個任務的參考文本"
+            }
+        ]
+    }
+}
+
+### 測試 Case 3: 任務 ID 重複
+# 步驟 2: 使用相同的 job_id 創建第二個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "test_project_2",
+    "job_id": "9fce80a9-86b2-4637-b9c6-6492f7e02aa7",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_2",
+                "text": "第二個任務的輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_2",
+                "text": "第二個任務的參考文本"
+            }
+        ]
+    }
+}
+
+### 測試任務狀態查詢 API
+
+### 測試 Case 1: 任務不存在
+GET {{baseUrl}}/rag/non_existent_job_id/status
+
+### 測試 Case 2: 任務已過期
+# 先創建一個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "expired_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 等一分鐘後然後查詢這個任務的狀態
+GET {{baseUrl}}/rag/57983868-d517-4111-8b70-09f665e0fee5/status
+
+### 測試 Case 3: 任務獲取狀態超時
+# 創建一個任務並立即查詢其狀態
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "timeout_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 立即查詢狀態（應該會超時）
+GET {{baseUrl}}/rag/3eb219b6-712a-4ebd-9ff7-ad748e024cec/status
+
+
+
+### 測試查詢所有專案 API
+
+### 測試 Case 1: 無效的專案 ID
+GET {{baseUrl}}/rag?project_id=invalid@project
+
+### 測試 Case 2: 清理已完成的任務
+GET {{baseUrl}}/rag?clean_old=true
+
+### 測試 Case 3: 查詢特定專案的任務
+GET {{baseUrl}}/rag?project_id={{projectId}}
+
+### 測試 Case 4: 查詢所有任務
+GET {{baseUrl}}/rag
+
+### 測試任務結果查詢 API
+
+### 測試 Case 1: 任務不存在
+GET {{baseUrl}}/rag/non_existent_job_id/result
+
+### 測試 Case 2: 任務已過期
+# 先創建一個任務
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "expired_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 等一分鐘後然後查詢這個任務的結果
+GET {{baseUrl}}/rag/24491db1-9eb4-448d-a0eb-12fb7caedd3e/result
+
+### 測試 Case 3: 任務獲取結果超時
+# 創建一個任務並立即查詢其結果
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "timeout_test",
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "測試輸入文本"
+            }
+        ]
+    },
+    "reference_data": {
+        "level1": [
+            {
+                "sid": "ref_1",
+                "text": "測試參考文本"
+            }
+        ]
+    }
+}
+
+### 立即查詢結果（應該會超時）
+GET {{baseUrl}}/rag/55b8f47f-e69b-424a-a1b3-1c291ef5ba52/result
+
+### 正常請求測試
+POST {{baseUrl}}/rag
+Content-Type: application/json
+
+{
+    "project_id": "{{projectId}}",
+    "scenario": {
+        "direction": "forward",
+        "rag_k": 5,
+        "cof_threshold": 0.6,
+        "role_desc": "你是RAG助手，負責比較文本相似度",
+        "reference_desc": "Reference 為參考文本，用於比對",
+        "input_desc": "Input 為輸入文本，需要與參考文本進行比對",
+        "scoring_rule": "請根據文本相似度給出信心分數，並標記出相似的文本片段"
+    },
+    "input_data": {
+        "level1": [
+            {
+                "sid": "input_1",
+                "text": "刑事局偵破中國籍駭客「Crazyhunter」入侵多家醫院、學校、上市公司刑事局今（２）日宣布偵破一起中國籍駭客「Crazyhunter」入侵多家醫院、學校、上市公司案，案經刑事局科技犯罪防制中心綜整並分析多起案件之入侵來源IP、手法以及惡意程式等資訊，證實駭客「Crazyhunter」之真實身分為中國大陸浙江省籍羅姓男子，全案已移送台北地方檢察署，檢方於114年4月1日發布通緝。「Crazyhunter」架設網站公告被害對象，意圖造成民眾心理恐慌。（刑事局提供）警方調查指出，今年2月6日馬偕紀念醫院遭駭客「Crazyhunter」以勒索病毒攻擊，造成電腦當機無法使用，並留言恐嚇馬偕醫院交付贖金。駭客取贖未果後，於2月28日在網路論壇上揭露及販售個人資料。案經北市警察局中山分局接獲馬偕醫院報案後，由刑事警察局科技犯罪防制中心與北警刑警大隊科技偵查隊共同組成專案小組偵辦，並報請台北地檢署指揮偵辦。警方並指，羅姓犯嫌涉嫌違反刑法妨害電腦使用罪、恐嚇取財罪及個人資料保護法，且駭侵攻擊對象為醫院、學校及上市公司，嚴重危害我國治安。羅嫌破壞社會秩序，甚至於暗網架設網站公告其駭侵對象及勒贖金額，意圖造成我國民眾心理恐慌、破壞社會安定，其影響層面鉅大，本案將依法查緝羅嫌到案，絕不寬貸。"
+            }
+        ]
+    },
+    "reference_data": {
+    "level1": [
+        {
+        "sid": "ref_1",
+        "text": "本文根據衛生福利部資安資訊分享與分析中心（H‑ISAC）公開情資與IOCs，結合MITRE ATT&CK模型，對馬偕醫院遭CrazyHunter勒索軟體攻擊事件進行技術拆解與分析。"
+        },
+        {
+        "sid": "ref_2",
+        "text": "Initial Access階段描述：攻擊者於2月6日透過IIS Web（Godzilla WebShell + reGeorg）取得內網入口，掃描AD可存取主機，並透過RDP與PortBender建立攻擊跳板。"
+        },
+        {
+        "sid": "ref_3",
+        "text": "Privilege Escalation階段：2月7日取得AD CS主機控制權，使用ntlmrelayx、secretsdump與PortBender等工具，利用ESC8或ESC11漏洞進行NTLM Relay並取得Domain Controller權限。"
+        },
+        {
+        "sid": "ref_4",
+        "text": "ESC8攻擊流程範例：攻擊者在Kali執行ntlmrelayx，利用PetitPotam觸發ADCS HTTP憑證申請，取得machine account憑證後進行Pass‑the‑Certificate或NTLM Hash擷取。"
+        },
+        {
+        "sid": "ref_5",
+        "text": "ESC11攻擊流程：若ESC8 HTTP通道無效，改用RPC方式觸發憑證申請，搭配ntlmrelayx或certipy與coercer.py、petitpotam.py實施RPC Relay攻擊。"
+        },
+        {
+        "sid": "ref_6",
+        "text": "Collection階段：攻擊者鎖定HR與IT系統，蒐集資料庫與個資，並透過AD權限將機敏資料集中至DC後再上傳雲端，為後續勒索或外洩做鋪陳。"
+        },
+        {
+        "sid": "ref_7",
+        "text": "Defense Evasion階段：攻擊者於批次腳本中自動複製資料，混淆／繞過防毒，並自製av‑killer工具（aa.exe、cc.exe、av‑1m/500kb.exe、go.exe等）透過BYOVD載入驅動程式終結防毒程序。"
+        },
+        {
+        "sid": "ref_8",
+        "text": "Impact階段：CrazyHunter（Prince‑Ransomware）使用Go實作chacha20加密、secp256k1非對稱演算法及Donut loader執行shellcode，以多版本保障加密成功率。"
+        },
+        {
+        "sid": "ref_9",
+        "text": "Command and Control階段：主要後門為Cobalt Strike beacon形式，透過Microsoft DevTunnels（域前置）與Graph API／SharePoint進行C2隱匿與資料交換，如appitob.exe、svc.exe、beacon_x64.exe等樣本具體config與通訊特徵。"
+        },
+        {
+        "sid": "ref_10",
+        "text": "結論：CrazyHunter勒索攻擊組合使用開源工具、熟悉AD攻擊途徑、動態調整防毒規避與C2域前置策略，並持續運用雲端服務做為隱蔽通訊管道，對企業防禦造成強大挑戰。"
+        }
+    ]
+    }
+
+}

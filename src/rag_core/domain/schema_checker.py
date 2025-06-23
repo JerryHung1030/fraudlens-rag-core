@@ -1,4 +1,4 @@
-from utils import log_wrapper
+from utils.logging import log_wrapper
 from typing import Any, Dict, List
 
 

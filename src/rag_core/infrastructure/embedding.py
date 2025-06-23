@@ -3,7 +3,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
-from utils import log_wrapper
+from utils.logging import log_wrapper
 from langchain_openai import OpenAIEmbeddings
 from config.settings import config_manager
 

@@ -2,14 +2,17 @@ from typing import Dict, Any, List, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import uuid
+import json
+from datetime import datetime
 
 from qdrant_client import QdrantClient, models
 from qdrant_client.models import PointStruct, FieldCondition, MatchValue
+from qdrant_client.http.exceptions import UnexpectedResponse
+from utils.logging import log_wrapper
 
 from rag_core.domain.schema_checker import DataStructureChecker
 from rag_core.infrastructure.embedding import EmbeddingManager
 
-from utils import log_wrapper
 from config.settings import config_manager
 
 
@@ -101,7 +104,7 @@ class VectorIndex:
             f"Collection {collection_name} is ready."
         )
 
-    def ingest_json(
+    async def ingest_json(
         self,
         collection_name: str,
         data: List[Dict[str, Any]],
@@ -143,15 +146,16 @@ class VectorIndex:
         points: List[PointStruct] = []
         for item in data:
             chunk_uid = item["uid"]  # chunk id
-            # 以固定轉換方式產生 Qdrant point ID
-            point_id = self._uid_to_point_id(chunk_uid)
-            vector = self.embedding_manager.generate_embedding(item["text"])
+            # 將業務 ID 轉換為合法的 Qdrant point ID
+            point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, chunk_uid))
+            vector = await asyncio.to_thread(self.embedding_manager.generate_embedding, item["text"])
             payload = dict(item)     # 包含 orig_sid, group_uid, side, text, ...
             points.append(PointStruct(id=point_id, vector=vector, payload=payload))
 
-        self._ensure_collection(collection_name)
+        await asyncio.to_thread(self._ensure_collection, collection_name)
         try:
-            self.qdrant_client.upsert(
+            await asyncio.to_thread(
+                self.qdrant_client.upsert,
                 collection_name=collection_name,
                 points=points
             )

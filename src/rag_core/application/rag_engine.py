@@ -1,18 +1,25 @@
 # services/rag_engine.py
 from __future__ import annotations
 import asyncio
-from typing import Any, Dict, List
+import json
+from typing import Any, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor
+import time
 
 from rag_core.domain.scenario import Scenario
+from rag_core.infrastructure.embedding import EmbeddingManager
+from rag_core.infrastructure.vector_store import VectorIndex
+from rag_core.infrastructure.llm.llm_manager import LLMManager
 from rag_core.application.prompt_builder import PromptBuilder
 from rag_core.application.result_formatter import ResultFormatter
+from rag_core.domain.schema_checker import DataStructureChecker
+from utils.logging import log_wrapper
 from rag_core.exceptions import (
     PromptTooLongError,
     EmbeddingError,
     VectorSearchError,
     LLMError
 )
-from utils import log_wrapper
 
 
 class RAGEngine:
