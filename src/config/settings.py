@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: settings.py
+    Description: Configuration management using Pydantic and YAML for the RAG system.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 from typing import Optional, Dict, Any

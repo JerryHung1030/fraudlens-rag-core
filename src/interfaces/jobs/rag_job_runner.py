@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: rag_job_runner.py
+    Description: Asynchronous RAG job runner for processing and callback.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # src/rag_job_runner.py
 from __future__ import annotations
 

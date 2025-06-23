@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: rag_engine.py
+    Description: Core engine for embedding, vector search, prompt, and LLM.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # services/rag_engine.py
 from __future__ import annotations
 import asyncio

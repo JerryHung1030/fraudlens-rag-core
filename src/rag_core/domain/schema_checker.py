@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: schema_checker.py
+    Description: Validation for hierarchical JSON data structure in RAG pipeline.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 from utils.logging import log_wrapper
 from typing import Any, Dict, List
 

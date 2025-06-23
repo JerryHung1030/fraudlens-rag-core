@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: models.py
+    Description: Pydantic models for RAG API requests, responses, and job status.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field, validator
 from datetime import datetime

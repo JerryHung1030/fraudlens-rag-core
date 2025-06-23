@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: job_manager.py
+    Description: In-memory manager for RAG job lifecycle and status.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 import asyncio
 import uuid
 from datetime import datetime

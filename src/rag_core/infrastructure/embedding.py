@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: embedding.py
+    Description: Embedding manager for text-to-vector conversion using LangChain.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # src/managers/embedding_manager.py
 import asyncio
 from concurrent.futures import ThreadPoolExecutor

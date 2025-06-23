@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: prompt_builder.py
+    Description: Prompt construction for LLMs based on scenario and candidates.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # services/prompt_builder.py
 import json
 from typing import List, Dict, Any, Tuple

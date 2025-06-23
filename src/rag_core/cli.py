@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: cli.py
+    Description: Command-line interface for interacting with the RAG API.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 import click
 import json
 import requests

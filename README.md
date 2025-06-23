@@ -17,7 +17,7 @@
 ## ✨ Features
 
 * **End‑to‑end RAG pipeline** powered by OpenAI GPT‑4o (default) or a local Llama adapter.
-* **Hierarchical JSON ingestion** (`level1` → `level5`) with automatic flattening, optional chunk‑splitting, and schema validation.
+* **Hierarchical JSON ingestion** (`level1` → `level5`) with automatic flattening, optional chunk‑splitting, and schema validation.
 * **Pluggable embeddings** via `langchain-openai` (defaults to `text‑embedding‑ada‑002`).
 * **Vector store abstraction** built on Qdrant, supporting upsert, search with metadata filters, and async operations.
 * **PromptBuilder** that fits the entire query + candidates within a configurable token budget and gracefully backs off.
@@ -244,6 +244,33 @@ $ python -m src.interfaces.cli_main --run-id run_1 \
       --direction forward
 ```
 
+### API Usage
+
+RAGCore-X exposes a FastAPI-based web API for submitting RAG jobs, checking their status, and retrieving results. The API is designed for asynchronous, scalable document analysis and comparison workflows.
+
+#### Start the API Server
+
+Make sure Redis is running, then launch the API service:
+
+```bash
+python src/interfaces/run_api.py
+```
+
+The API will be available at `http://localhost:8000` by default.
+
+#### Main Endpoints
+
+- **POST `/api/v1/rag`** — Submit a new RAG job
+- **GET `/api/v1/rag/{job_id}/status`** — Check job status
+- **GET `/api/v1/rag/{job_id}/result`** — Retrieve job result
+- **GET `/api/v1/rag`** — List all jobs (optionally filter by project)
+- **DELETE `/api/v1/rag/{job_id}`** — Delete a job
+
+
+
+#### Notes
+For detailed API specifications, please refer to [RAGCore-X_api.xlsx](docs/RAGCore-X_api.xlsx).
+
 ### Programmatic (FastAPI + RQ)
 
 ```python
@@ -263,7 +290,6 @@ job_id = start_rag_job(
 )
 print("Enqueued RAG job:", job_id)
 ```
-
 ---
 
 ## 🧪 Testing
@@ -324,3 +350,4 @@ Copyright (c) 2024 Institute for Information Industry (III), Cyber Security Tech
 All rights reserved. This software is proprietary and confidential. Unauthorized copying, modification, distribution, or use is strictly prohibited.
 
 > © 2024 Institute for Information Industry (III), Cyber Security Technology Institute (CSTI). Built with ❤️ in Taiwan.
+

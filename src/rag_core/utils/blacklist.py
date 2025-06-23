@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: blacklist.py
+    Description: Blacklist manager for URL and line ID checking.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # src/managers/blacklist_manager.py
 from typing import List
 

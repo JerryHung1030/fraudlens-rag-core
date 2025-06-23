@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: result_formatter.py
+    Description: Parse and format LLM outputs, attach similarity scores, filter by confidence.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # services/result_formatter.py
 import json
 from utils.logging import log_wrapper

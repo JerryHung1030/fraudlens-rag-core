@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: scenario.py
+    Description: Scenario configuration model for RAG tasks.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # services/scenario.py
 from pydantic import BaseModel, Field
 from typing import Optional

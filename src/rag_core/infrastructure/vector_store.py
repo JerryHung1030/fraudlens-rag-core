@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: vector_store.py
+    Description: Unified vector database interface using Qdrant backend.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 from typing import Dict, Any, List, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor

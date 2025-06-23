@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: logging.py
+    Description: Loguru-based logging wrapper for system-wide logging and rotation.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 import os
 from datetime import datetime
 from loguru import logger

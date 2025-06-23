@@ -1,3 +1,14 @@
+"""
+===============================================================================
+    Module Name: exceptions.py
+    Description: Custom exceptions for prompt, embedding, vector search, and LLM errors.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
+
 # services/errors.py
 
 class PromptTooLongError(Exception):

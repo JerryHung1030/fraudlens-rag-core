@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: token_counter.py
+    Description: Token counting and truncation utilities for LLM prompts.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # utils/token_counter.py
 from tiktoken import encoding_for_model, get_encoding
 

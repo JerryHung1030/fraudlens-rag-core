@@ -1,6 +1,16 @@
 # src/utils/text_preprocessor.py
 from typing import Any, Dict, List
 
+"""
+===============================================================================
+    Module Name: text_preprocessor.py
+    Description: Flatten and chunk hierarchical JSON for RAG input processing.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 
 class TextPreprocessor:
     """

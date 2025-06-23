@@ -1,3 +1,13 @@
+"""
+===============================================================================
+    Module Name: llm_manager.py
+    Description: Manager for registering and retrieving LLM adapters.
+    Author: Jerry, Ken, SJ
+    Last Updated: 2025-06-23
+    Version: 1.0.0
+    Notes: 無
+===============================================================================
+"""
 # src/managers/llm_manager.py
 from typing import Dict
 from rag_core.infrastructure.llm.base_adapter import LLMAdapter
