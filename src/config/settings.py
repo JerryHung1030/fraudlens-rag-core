@@ -47,7 +47,7 @@ class LLMConfig(BaseModel):
 
 class VectorDBConfig(BaseModel):
     """向量資料庫相關設定"""
-    url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
+    url: str = Field(default="http://qdrant:6333", alias="QDRANT_URL")
     collection: str = Field(default="my_rag_collection", alias="QDRANT_COLLECTION")
     vector_size: int = Field(default=1536)
 
