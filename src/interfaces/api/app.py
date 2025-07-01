@@ -22,6 +22,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 import re
+import time
+import requests
 
 from .models import RAGRequest, RAGResponse, JobStatus
 from .job_manager import job_manager
@@ -42,7 +44,8 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 # 初始化 Redis 和 RQ Queue
-redis_conn = Redis(host="127.0.0.1", port=6379, db=0)
+redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
+redis_conn = Redis.from_url(redis_url)
 rag_queue = Queue("rag_jobs", connection=redis_conn)
 
 # 使用 Redis 來追蹤運行中的任務
@@ -108,7 +111,18 @@ async def startup_event():
     redis_conn.delete(RUNNING_JOBS_KEY)
     log_wrapper.info("app", "startup_event", "服務啟動：已清理運行中的任務集合")
 
-# 初始化核心元件
+def wait_for_qdrant_ready(url, max_retries=30, interval=2):
+    for i in range(max_retries):
+        try:
+            resp = requests.get(f"{url}/healthz", timeout=2)
+            if resp.status_code == 200:
+                print(f"Qdrant is ready after {i+1} tries")
+                return
+        except Exception as e:
+            print(f"Qdrant not ready, retry {i+1}: {e}")
+        time.sleep(interval)
+    raise RuntimeError("Qdrant not ready after waiting")
+
 def setup_core():
     log_wrapper.info("app", "setup_core", "開始初始化核心元件")
     settings = config_manager.settings
@@ -122,8 +136,13 @@ def setup_core():
     # Data schema checker
     checker = DataStructureChecker()
 
+    # 等待 Qdrant healthz ready
+    qdrant_url = settings.vector_db.url
+    log_wrapper.info("app", "setup_core", f"Qdrant URL: {qdrant_url}")
+    wait_for_qdrant_ready(qdrant_url)
+
     # Qdrant client
-    qdrant = QdrantClient(url=settings.vector_db.url)
+    qdrant = QdrantClient(url=qdrant_url)
 
     # VectorIndex
     vec_index = VectorIndex(
