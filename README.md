@@ -1,8 +1,6 @@
-# RAGCore‑X
+# rag-core
 
-> **A modular Retrieval‑Augmented Generation (RAG) core service that exposes high‑level Web APIs for document ingest, semantic search, comparison, and question‑answering—built to power multiple downstream products such as ScamShield‑AI, Relulens‑AI, and InsightDoc‑AI.**
->
-> *LoRA or other parameter‑efficient fine‑tuning is **not** enabled yet, but optional support is on the roadmap once the local‑model pipeline is solid.*
+> **A production-ready Retrieval-Augmented Generation service** that **schedules**, **stores**, and **serves** document-aware intelligence through a single set of high-level Web APIs—built to power multiple downstream products such as **Fraudlens** and **Relulens-AI**.
 
 ---
 
@@ -14,31 +12,17 @@
 
 ---
 
-## ✨ Features
-
-* **End‑to‑end RAG pipeline** powered by OpenAI GPT‑4o (default) or a local Llama adapter.
-* **Hierarchical JSON ingestion** (`level1` → `level5`) with automatic flattening, optional chunk‑splitting, and schema validation.
-* **Pluggable embeddings** via `langchain-openai` (defaults to `text‑embedding‑ada‑002`).
-* **Vector store abstraction** built on Qdrant, supporting upsert, search with metadata filters, and async operations.
-* **PromptBuilder** that fits the entire query + candidates within a configurable token budget and gracefully backs off.
-* **ResultFormatter** that parses the LLM JSON output, merges similarity scores, filters by confidence, and normalizes direction (forward / reverse / both).
-* **Job orchestration** with Redis‑RQ (batch ingest + RAG jobs) and a minimal FastAPI façade.
-* **Rich logging** via loguru with daily rotation.
-* **Extensive unit tests** (PyTest) with mocks for fast, cost‑free CI.
-
----
-
 ## Table of Contents
 
-1. [✨ Features](#features)
-2. [🗺️ Architecture Overview](#architecture-overview)
-3. [📂 Project Structure](#project-structure)
-4. [🚀 Quick Start](#quick-start)
-5. [⚙️ Configuration](#configuration)
-6. [🛠️ CLI & API Usage](#cli--api-usage)
-7. [🧪 Testing](#testing)
-8. [🤝 Contributing](#contributing)
-9. [📄 License](#license)
+1. [✨ Features](#-features)
+2. [🗺️ Architecture Overview](#-architecture-overview)
+3. [📂 Project Structure](#-project-structure)
+4. [🚀 Quick Start](#-quick-start)
+5. [⚙️ Configuration](#-configuration)
+6. [🛠️ API Usage](#-api-usage)
+7. [🚧 Development Status & Roadmap](#-development-status--roadmap)
+8. [🤝 Contributing](#-contributing)
+9. [📄 License](#-license)
 
 ---
 
@@ -52,7 +36,6 @@
 * **ResultFormatter** that parses the LLM JSON output, merges similarity scores, filters by confidence, and normalizes direction (forward / reverse / both).
 * **Job orchestration** with **Redis‑RQ** (batch ingest + RAG jobs) and a minimal **FastAPI** facade.
 * **Rich logging** via **loguru** with daily rotation.
-* **Extensive unit tests** (PyTest) with mocks for fast, cost‑free CI.
 
 ---
 
@@ -85,87 +68,71 @@
 ## 📂 Project Structure
 
 ```text
-├── src/
-│   ├── rag_core/            # Core RAG logic (domain, application, infrastructure)
-│   │   ├── domain/          # Pydantic schemas, validation, exceptions
-│   │   ├── application/     # PromptBuilder, RAGEngine, ResultFormatter
-│   │   └── infrastructure/  # Embeddings, VectorStore, LLM adapters
-│   ├── interfaces/
-│   │   ├── cli_main.py      # One‑shot CLI pipeline
-│   │   ├── jobs/            # RQ Job runner
-│   │   └── api/             # FastAPI facade
-│   ├── data/                # Example hierarchical JSON datasets
-│   └── config/              # YAML + pydantic‑settings
-├── tests/                   # PyTest suites with extensive mocks
-├── requirements.txt         # Python dependencies
-└── README.md
+rag-core/
+├── src/                              # Python source root
+│   ├── rag_core/                     # Core: Domain / Application / Infrastructure
+│   │   ├── domain/                   #   • Business objects and Pydantic models
+│   │   ├── application/              #   • Use-cases: PromptBuilder, RAGEngine, etc.
+│   │   ├── infrastructure/           #   • Adapters: Embeddings, VectorStore, LLM
+│   │   └── utils/                    #   • Shared utilities (token counter, blacklist, etc.)
+│   ├── interfaces/                   # Entry layer: CLI, API, Job Runner
+│   │   ├── api/                      #   • FastAPI web layer
+│   │   ├── jobs/                     #   • Redis-RQ job executor
+│   │   └── cli_main.py               #   • One-off CLI pipeline
+│   ├── config/                       # Configuration: YAML + Pydantic Settings
+│   └── data/                         # Example datasets (demo JSON)
+│
+├── tests/                            # PyTest suites (heavy use of mocks, fast CI)
+│   └── …                             #   • Grouped by layer: domain / application / infra
+│
+├── docker-compose.yml                # One-click launch for Qdrant, Redis, API
+├── Dockerfile                        # Build runtime image
+├── requirements.txt                  # Python dependencies
+├── README.md                         # This document
+└── LICENSE                           # License
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Prerequisites
+### 0. Run with **Docker Compose** (Recommended)
 
-* **Python ≥ 3.12**
-* **Docker** (for Qdrant & Redis) *or* native installations
-* An **OpenAI API key** (required for GPT-4o)
+**The fastest way to get started.** This will install Docker, verify the installation, and launch all services (Qdrant, Redis, API) with a single command.
 
-### 2. Environment Setup
+1. **Install Docker**
 
+Download the official installation script:
 ```bash
-# set OpenAI API Key
-$ export OPENAI_API_KEY="your-api-key-here"
-
-# Or, you can create a .env file
-$ echo "OPENAI_API_KEY=your-api-key-here" > .env
+curl -fsSL https://get.docker.com -o get-docker.sh
+```
+Run the installation script:
+```bash
+sudo sh get-docker.sh
+```
+Verify Docker installation:
+```bash
+docker --version
+sudo docker run hello-world
 ```
 
-> ⚠️ **Important Note**: Make sure to set up your API Key before running any commands, otherwise the program will not function properly.
+2. **Set your OpenAI API Key**
 
-### 3. Clone & Install
+Make sure to set your `.env` file or the `OPENAI_API_KEY` environment variable before starting the services, otherwise the application will not work.
 
-```bash
-# 1⃣  Clone
-$ git clone https://github.com/your-org/RAGCore-X.git
-$ cd RAGCore-X
-
-# 2⃣  Create venv
-$ python -m venv .venv && source .venv/bin/activate
-
-# 3⃣  Install deps
-$ pip install -r requirements.txt
-```
-
-### 4. Spin up services
+3. **Launch all services**
 
 ```bash
-# Qdrant
-$ docker run -d --name qdrant -p 6333:6333 qdrant/qdrant
-
-# Redis (for RQ)
-$ docker run -d --name redis -p 6379:6379 redis:7
+docker compose up --build
 ```
 
-### 5. Run the **demo CLI**
-
-```bash
-$ python -m src.interfaces.cli_main
-```
-
-This will ingest the sample `scam_input.json` & `scam_references.json`, execute a reverse‑direction RAG, and write results to `src/interfaces/output/rag_result.json`.
-
-### 6. Launch the **FastAPI** endpoint (optional)
-
-```bash
-$ uvicorn src.interfaces.api.fastapi_app:app --reload --port 8000
-```
+The API will be available at [http://localhost:8000](http://localhost:8000) by default.
 
 ---
 
 ## ⚙️ Configuration
 
-ScamShield-AI uses a layered configuration system that combines environment variables, YAML files, and Pydantic settings for maximum flexibility.
+fraudlens-rag-core uses a layered configuration system that combines environment variables, YAML files, and Pydantic settings for maximum flexibility.
 
 ### Environment Variables
 
@@ -234,71 +201,20 @@ Settings are applied in the following order (highest to lowest priority):
 
 ---
 
-## 🛠️ CLI & API Usage
-
-### CLI
-
-```bash
-# Forward direction (input → reference)
-$ python -m src.interfaces.cli_main --run-id run_1 \
-      --direction forward
-```
-
-### API Usage
-
-RAGCore-X exposes a FastAPI-based web API for submitting RAG jobs, checking their status, and retrieving results. The API is designed for asynchronous, scalable document analysis and comparison workflows.
-
-#### Start the API Server
-
-Make sure Redis is running, then launch the API service:
-
-```bash
-python src/interfaces/run_api.py
-```
-
-The API will be available at `http://localhost:8000` by default.
+## 🛠️ API Usage
 
 #### Main Endpoints
 
-- **POST `/api/v1/rag`** — Submit a new RAG job
-- **GET `/api/v1/rag/{job_id}/status`** — Check job status
-- **GET `/api/v1/rag/{job_id}/result`** — Retrieve job result
-- **GET `/api/v1/rag`** — List all jobs (optionally filter by project)
-- **DELETE `/api/v1/rag/{job_id}`** — Delete a job
-
-
+| Name | Method | Route | Function |
+|:-:|:-:|:-:|:-:|
+| submit_rag_job | POST | `/api/v1/rag` | Submit a new RAG job |
+| get_rag_job_status | GET | `/api/v1/rag/{job_id}/status` | Query the status of a specified job |
+| get_rag_job_result | GET | `/api/v1/rag/{job_id}/result` | Retrieve the result of a specified job |
+| list_rag_jobs | GET | `/api/v1/rag` | List all jobs (optionally filtered by project) |
+| delete_rag_job | DELETE | `/api/v1/rag/{job_id}` | Delete a specified job |
 
 #### Notes
 For detailed API specifications, please refer to [RAGCore-X_api.xlsx](docs/RAGCore-X_api.xlsx).
-
-### Programmatic (FastAPI + RQ)
-
-```python
-from src.interfaces.api.fastapi_app import start_rag_job, RAGJobRunner
-from src.rag_core.infrastructure import setup_core
-
-embed_mgr, vec_index, llm_mgr = setup_core()
-runner = RAGJobRunner(vec_index, RAGEngine(embed_mgr, vec_index, llm_mgr))
-
-job_id = start_rag_job(
-    job_runner=runner,
-    project_id="demo_proj",
-    scenario={"direction": "reverse", "rag_k_reverse": 20},
-    input_json_path="/path/input.json",
-    reference_json_path="/path/ref.json",
-    callback_url="https://your.backend/api/rag_callback"
-)
-print("Enqueued RAG job:", job_id)
-```
----
-
-## 🧪 Testing
-
-```bash
-$ pytest -q
-```
-
-The test suite mocks **OpenAI**, **Qdrant**, and **Embeddings** to provide fast, deterministic results (< 5 s on a laptop).
 
 ---
 
@@ -318,7 +234,6 @@ The test suite mocks **OpenAI**, **Qdrant**, and **Embeddings** to provide fast,
 ### 🛠️ In progress
 
 * **Orchestration decoupling** – Redis/RQ dependencies will be extracted from `rag_core`; the job queue becomes an *optional* outer service.
-* **Packaging** – publish `rag_core` as a standalone `pip install scamshield-rag` so any backend can import and wire up its own queue.
 * **Scenario templates** – ship more scoring rules, prompt recipes, and evaluation scripts.
 
 ### 🗓️ Planned / help wanted
@@ -327,7 +242,6 @@ The test suite mocks **OpenAI**, **Qdrant**, and **Embeddings** to provide fast,
 * Async streaming helpers (WebSocket / SSE) for real‑time UIs.
 * Multilingual (JP/KR/EN) scam datasets & regulatory corpora.
 * Memory‑aware chunking + performance benchmarks.
-* **Local fine‑tuning workflow** — LoRA / QLoRA recipes for Llama‑3 or Phi‑3 to run completely offline.
 
 ---
 
