@@ -1,6 +1,6 @@
-# rag-core
+# RAG Core X
 
-> **A production-ready Retrieval-Augmented Generation service** that **schedules**, **stores**, and **serves** document-aware intelligence through a single set of high-level Web APIs—built to power multiple downstream products such as **Fraudlens** and **Relulens-AI**.
+> **A production-ready Retrieval-Augmented Generation service** that **schedules**, **stores**, and **serves** document-aware intelligence through a robust set of Web APIs. Built to power multiple downstream products such as **Fraudlens** and **Relulens-AI** etc.
 
 ---
 
@@ -16,8 +16,8 @@
 
 1. [✨ Features](#-features)
 2. [🗺️ Architecture Overview](#-architecture-overview)
-3. [📂 Project Structure](#-project-structure)
-4. [🚀 Quick Start](#-quick-start)
+3. [🚀 Quick Start](#-quick-start)
+4. [📂 Project Structure](#-project-structure)
 5. [⚙️ Configuration](#-configuration)
 6. [🛠️ API Usage](#-api-usage)
 7. [🚧 Development Status & Roadmap](#-development-status--roadmap)
@@ -28,139 +28,180 @@
 
 ## ✨ Features
 
-* **End‑to‑end RAG pipeline** powered by **OpenAI GPT‑4o** (default) or **local Llama** adapter.
-* **Hierarchical JSON ingestion** (`level1 → level5`) with automatic flattening, optional chunk‑splitting, and schema validation.
-* **Pluggable embeddings** via `langchain-openai` (defaults to `text‑embedding‑ada‑002`).
-* **Vector store abstraction** built on **Qdrant**, supporting upsert, search w/ metadata filters, and async operations.
-* **PromptBuilder** that fits the entire query + candidates within a configurable token budget and gracefully backs off.
-* **ResultFormatter** that parses the LLM JSON output, merges similarity scores, filters by confidence, and normalizes direction (forward / reverse / both).
-* **Job orchestration** with **Redis‑RQ** (batch ingest + RAG jobs) and a minimal **FastAPI** facade.
-* **Rich logging** via **loguru** with daily rotation.
+*   **End-to-End RAG Pipeline:** Powered by **OpenAI GPT-4o** (default) or a local **Llama** adapter.
+*   **Flexible Data Ingestion:** Supports hierarchical JSON (`level1` → `level5`) with automatic flattening, optional chunk-splitting, and schema validation.
+*   **Pluggable Embeddings:** Utilizes `langchain-openai` (defaults to `text-embedding-ada-002`) for text embeddings.
+*   **Scalable Vector Storage:** Abstracted vector store built on **Qdrant**, supporting upsert, search with metadata filters, and asynchronous operations.
+*   **Intelligent Prompt Engineering:** `PromptBuilder` dynamically fits queries and candidate documents within a configurable token budget, with graceful backoff mechanisms.
+*   **Comprehensive Result Formatting:** `ResultFormatter` parses LLM JSON output, merges similarity scores, filters by confidence, and normalizes search direction (forward/reverse/both).
+*   **Asynchronous Job Orchestration:** Leverages **Redis-RQ** for batch ingestion and RAG jobs, fronted by a minimal **FastAPI** layer.
+*   **Rich Logging:** Implements **Loguru** for structured logging with daily rotation.
 
 ---
 
 ## 🗺️ Architecture Overview
 
-```text
-┌──────────┐     ┌───────────────┐     ┌──────────┐
-│  Input   │     │   Embedding   │     │  Qdrant  │
-│ JSON(s)  │──►──│  Manager      │──►──│ Vector DB│
-└──────────┘     └───────────────┘     └──────────┘
-      │                                   ▲
-      ▼                                   │
-┌────────────┐  search(top‑k)  ┌──────────┴──────┐
-│  RAGEngine │───────────────►│ PromptBuilder   │
-└─────┬──────┘                 └────────┬───────┘
-      │   LLM request / stream          │prompt
-      ▼                                 ▼
-┌────────────┐                   ┌──────────────┐
-│  LLMProxy  │◄── GPT‑4o / Llama │ ResultFormat │
-└────────────┘                   └──────┬───────┘
-      │                                   │
-      ▼                                   ▼
-┌──────────────┐                   ┌──────────────┐
-│  RAG Result  │◄──────────────────│    Client    │
-└──────────────┘                   └──────────────┘
-```
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as FastAPI App
+    participant RQ as Redis Queue
+    participant Worker as RQ Worker
+    participant RJobRunner as RAGJobRunner
+    participant RAGEngine
+    participant EmbMgr as EmbeddingManager
+    participant VecIdx as VectorIndex (Qdrant)
+    participant LLMMgr as LLMManager
+    participant PromptBldr as PromptBuilder
+    participant ResFmtr as ResultFormatter
 
----
+    User->>+API: POST /api/v1/rag (RAGRequest: project_id, scenario, input_data, reference_data)
+    API->>RQ: Enqueue job (process_rag_job) with payload
+    API-->>-User: RAGResponse (job_id, status: pending)
 
-## 📂 Project Structure
+    Note over Worker: Worker picks up job from RQ
 
-```text
-rag-core/
-├── src/                              # Python source root
-│   ├── rag_core/                     # Core: Domain / Application / Infrastructure
-│   │   ├── domain/                   #   • Business objects and Pydantic models
-│   │   ├── application/              #   • Use-cases: PromptBuilder, RAGEngine, etc.
-│   │   ├── infrastructure/           #   • Adapters: Embeddings, VectorStore, LLM
-│   │   └── utils/                    #   • Shared utilities (token counter, blacklist, etc.)
-│   ├── interfaces/                   # Entry layer: CLI, API, Job Runner
-│   │   ├── api/                      #   • FastAPI web layer
-│   │   ├── jobs/                     #   • Redis-RQ job executor
-│   │   └── cli_main.py               #   • One-off CLI pipeline
-│   ├── config/                       # Configuration: YAML + Pydantic Settings
-│   └── data/                         # Example datasets (demo JSON)
-│
-├── tests/                            # PyTest suites (heavy use of mocks, fast CI)
-│   └── …                             #   • Grouped by layer: domain / application / infra
-│
-├── docker-compose.yml                # One-click launch for Qdrant, Redis, API
-├── Dockerfile                        # Build runtime image
-├── requirements.txt                  # Python dependencies
-├── README.md                         # This document
-└── LICENSE                           # License
+    Worker->>+RJobRunner: run_rag_job(payload)
+    RJobRunner->>+RAGEngine: generate_answer(user_query, root_uid, scenario, index_info)
+    RAGEngine->>+EmbMgr: generate_embedding_async(user_query)
+    EmbMgr-->>-RAGEngine: query_vector
+    RAGEngine->>+VecIdx: search_async(collection, query_vector, k, filters)
+    VecIdx-->>-RAGEngine: hits (retrieved documents)
+    RAGEngine->>+PromptBldr: build_prompt(user_query, hits, scenario)
+    PromptBldr-->>-RAGEngine: llm_prompt
+    RAGEngine->>+LLMMgr: get_adapter(scenario.llm_name)
+    LLMMgr-->>-RAGEngine: llm_adapter
+    RAGEngine->>llm_adapter: async_generate_response(llm_prompt)
+    llm_adapter-->>RAGEngine: raw_llm_output
+    RAGEngine->>+ResFmtr: parse_and_format(raw_llm_output, hits, ...)
+    ResFmtr-->>-RAGEngine: formatted_results
+    RAGEngine-->>-RJobRunner: formatted_results
+    RJobRunner-->>-Worker: results
+
+    Note over Worker: Worker updates job status & results in Redis
+
+    User->>+API: GET /api/v1/rag/{job_id}/result
+    API->>Redis: Fetch job result
+    Redis-->>API: Job result data
+    API-->>-User: Job result (including formatted_results)
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### 0. Run with **Docker Compose** (Recommended)
+The fastest way to get RAG Core X up and running is by using Docker Compose. This method handles the installation and launch of all necessary services, including Qdrant, Redis, and the API.
 
-**The fastest way to get started.** This will install Docker, verify the installation, and launch all services (Qdrant, Redis, API) with a single command.
+### Prerequisites
 
-1. **Install Docker**
+*   **Docker and Docker Compose:** Ensure Docker and Docker Compose are installed on your system.
+    *   To install Docker, download the official script:
+        ```bash
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sudo sh get-docker.sh
+        ```
+    *   Verify the installation:
+        ```bash
+        docker --version
+        sudo docker run hello-world
+        ```
+        (Docker Compose is typically included with modern Docker installations.)
 
-Download the official installation script:
-```bash
-curl -fsSL https://get.docker.com -o get-docker.sh
+*   **OpenAI API Key:** Set your `OPENAI_API_KEY` environment variable. You can do this by creating a `.env` file in the project root:
+    ```env
+    OPENAI_API_KEY="your_openai_api_key_here"
+    ```
+    The application will not function correctly without this key.
+
+### Launching Services
+
+1.  **Clone the repository (if you haven't already):**
+    ```bash
+    git clone <repository_url>
+    cd rag-core
+    ```
+
+2.  **Build and run with Docker Compose:**
+    ```bash
+    docker compose up --build -d
+    ```
+    The `-d` flag runs the services in detached mode.
+
+The API will be available at `http://localhost:8000` by default. You can check the logs using `docker compose logs -f`.
+
+---
+
+## 📂 Project Structure
+
+The project is organized into several key directories:
+
+```text
+rag-core/
+├── .github/                    # GitHub Actions workflows (e.g., CI)
+├── docs/                       # Documentation, API specifications (e.g., RAGCore-X_api.xlsx)
+├── src/                        # Python source root
+│   ├── config/                 # Configuration: YAML files and Pydantic settings
+│   ├── data/                   # Example datasets (e.g., demo JSON files)
+│   ├── interfaces/             # Entry layer: API, CLI, Job Runner
+│   │   ├── api/                #   • FastAPI web application and endpoints
+│   │   ├── jobs/               #   • Redis-RQ job execution logic
+│   │   └── cli_main.py         #   • Command-line interface entry point
+│   ├── rag_core/               # Core RAG logic: Domain, Application, Infrastructure
+│   │   ├── application/        #   • Use-cases: RAGEngine, PromptBuilder, ResultFormatter
+│   │   ├── domain/             #   • Business objects, Pydantic models, and enums
+│   │   ├── infrastructure/     #   • Adapters: Embeddings, VectorStore, LLM providers
+│   │   └── utils/              #   • Shared utilities (token counter, blacklist, etc.)
+│   └── utils/                  # General utility modules (e.g., logging setup)
+│
+├── tests/                      # PyTest suites (unit, integration tests)
+│   └── …                       #   • Grouped by layer: application, domain, infrastructure, interfaces
+│
+├── .gitignore                  # Specifies intentionally untracked files that Git should ignore
+├── docker-compose.yml          # Defines and configures multi-container Docker applications
+├── Dockerfile                  # Instructions for building the Docker image for the application
+├── LICENSE                     # Project license information
+├── README.md                   # This document
+├── requirements.txt            # Python package dependencies
+└── setup.py                    # Script for packaging and distributing the project
 ```
-Run the installation script:
-```bash
-sudo sh get-docker.sh
-```
-Verify Docker installation:
-```bash
-docker --version
-sudo docker run hello-world
-```
-
-2. **Set your OpenAI API Key**
-
-Make sure to set your `.env` file or the `OPENAI_API_KEY` environment variable before starting the services, otherwise the application will not work.
-
-3. **Launch all services**
-
-```bash
-docker compose up --build
-```
-
-The API will be available at [http://localhost:8000](http://localhost:8000) by default.
 
 ---
 
 ## ⚙️ Configuration
 
-fraudlens-rag-core uses a layered configuration system that combines environment variables, YAML files, and Pydantic settings for maximum flexibility.
+RAG Core X employs a layered configuration system, prioritizing settings as follows:
+
+1.  **Environment Variables** (highest priority)
+2.  **Local Configuration File** (`settings.local.yml`)
+3.  **Base Configuration File** (`src/config/settings.base.yml`)
+4.  **Default values in code** (lowest priority)
 
 ### Environment Variables
 
-The following environment variables can be used to override default settings:
+These variables can override settings from configuration files.
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `OPENAI_API_KEY` | Your OpenAI API key | - | Yes |
-| `LLM_MODEL` | LLM model to use | `gpt-4o` | No |
-| `QDRANT_URL` | Qdrant server URL | `http://localhost:6333` | No |
-| `QDRANT_COLLECTION` | Qdrant collection name | `dev_rag_collection` | No |
-| `IS_DEBUG` | Enable debug mode | `false` | No |
+| Variable          | Description                                     | Default                  | Required |
+| ----------------- | ----------------------------------------------- | ------------------------ | :------: |
+| `OPENAI_API_KEY`  | Your OpenAI API key                             | —                        |   Yes    |
+| `LLM_MODEL`       | LLM model to use (e.g., `gpt-4o`, `gpt-3.5-turbo`) | `gpt-4o`                 |    No    |
+| `QDRANT_URL`      | Qdrant server URL                               | `http://localhost:6333`  |    No    |
+| `QDRANT_COLLECTION`| Qdrant collection name                          | `dev_rag_collection`     |    No    |
+| `IS_DEBUG`        | Enable debug mode (`true` or `false`)           | `false`                  |    No    |
+| `REDIS_URL`       | Redis connection URL                            | `redis://127.0.0.1:6379/0`|    No    |
 
 ### Configuration Files
 
-The system uses two types of configuration files:
+*   **Base Configuration (`src/config/settings.base.yml`):**
+    *   Contains default settings suitable for all environments.
+    *   Version controlled.
+    *   Should **not** contain sensitive information.
+*   **Local Configuration (`settings.local.yml`):**
+    *   Overrides base settings for local development.
+    *   Located in the project root (create if it doesn't exist).
+    *   **Not** version controlled (should be added to `.gitignore`).
+    *   Can contain environment-specific or sensitive settings for local use.
 
-1. **Base Configuration** (`src/config/settings.base.yml`):
-   - Contains default settings for all environments
-   - Version controlled
-   - Should not contain sensitive information
-
-2. **Local Configuration** (`settings.local.yml`):
-   - Overrides base settings for local development
-   - Not version controlled
-   - Can contain environment-specific settings
-
-Example base configuration:
+**Example `settings.base.yml`:**
 
 ```yaml
 system:
@@ -171,87 +212,76 @@ system:
 llm:
   model: gpt-4o
   temperature: 0.7
-  max_tokens: 4096
-  max_prompt_tokens: 8000
+  max_tokens: 4096        # Max tokens for LLM completion
+  max_prompt_tokens: 8000 # Max tokens for the entire prompt context
+
+embedding:
+  model: text-embedding-ada-002
 
 vector_db:
-  url: http://localhost:6333
+  url: http://localhost:6333 # Set via QDRANT_URL env var in docker-compose
   collection: dev_rag_collection
-  vector_size: 1536
+  vector_size: 1536 # Based on text-embedding-ada-002
 
-scenario:
-  direction: reverse        # forward / reverse / both
+scenario: # Default scenario settings
+  direction: reverse        # 'forward', 'reverse', or 'both'
   rag_k_forward: 5
   rag_k_reverse: 20
-  cof_threshold: 0.6
-  reference_json: "src/data/scam_references.json"
-  input_json: "src/data/scam_input.json"
+  rag_k: 10                 # Default k if specific direction k is not set
+  cof_threshold: 0.6      # Confidence threshold for filtering results
+  reference_json: "src/data/scam_references.json" # Default path
+  input_json: "src/data/scam_input.json"          # Default path
+  llm_name: "openai"      # Default LLM adapter ('openai' or 'llama')
 ```
 
-### Configuration Priority
-
-Settings are applied in the following order (highest to lowest priority):
-
-1. Environment variables
-2. Local configuration file (`settings.local.yml`)
-3. Base configuration file (`settings.base.yml`)
-4. Default values in code
-
-> **Security Note**: Always store sensitive information (API keys, credentials) in environment variables or `.env` files, never in configuration files.
+> **Security Note:** Always store sensitive information like API keys in environment variables or a local `.env` file, never commit them to version control.
 
 ---
 
 ## 🛠️ API Usage
 
-#### Main Endpoints
+The service provides RESTful endpoints for managing RAG jobs.
 
-| Name | Method | Route | Function |
-|:-:|:-:|:-:|:-:|
-| submit_rag_job | POST | `/api/v1/rag` | Submit a new RAG job |
-| get_rag_job_status | GET | `/api/v1/rag/{job_id}/status` | Query the status of a specified job |
-| get_rag_job_result | GET | `/api/v1/rag/{job_id}/result` | Retrieve the result of a specified job |
-| list_rag_jobs | GET | `/api/v1/rag` | List all jobs (optionally filtered by project) |
-| delete_rag_job | DELETE | `/api/v1/rag/{job_id}` | Delete a specified job |
+### Main Endpoints
 
-#### Notes
-For detailed API specifications, please refer to [RAGCore-X_api.xlsx](docs/RAGCore-X_api.xlsx).
+| Name                 | Method | Route                          | Description                                      |
+| :------------------- | :----- | :----------------------------- | :----------------------------------------------- |
+| Submit RAG Job       | `POST` | `/api/v1/rag`                  | Submits a new RAG job for processing.            |
+| Get RAG Job Status   | `GET`  | `/api/v1/rag/{job_id}/status`  | Queries the status of a specific job.            |
+| Get RAG Job Result   | `GET`  | `/api/v1/rag/{job_id}/result`  | Retrieves the result of a completed job.         |
+| List RAG Jobs        | `GET`  | `/api/v1/rag`                  | Lists all jobs, optionally filtered by project.  |
+| Delete RAG Job       | `DELETE`| `/api/v1/rag/{job_id}`         | Deletes a specific job and its associated data.  |
+
+### Notes
+
+*   For detailed API request/response schemas and examples, please refer to the OpenAPI documentation available at `/docs` (when the service is running) or the `docs/RAGCore-X_api.xlsx` file.
+*   Authentication and authorization mechanisms are not detailed here but should be considered for production deployments.
 
 ---
 
 ## 🚧 Development Status & Roadmap
 
-> **Status — Alpha preview.** The fundamental RAG loop is stable, but the orchestration layer is being redesigned.
+**Status: Alpha**
+The core RAG pipeline is functional and stable. The job orchestration layer is operational but may undergo further refinements for scalability and flexibility.
 
-### ✅ Completed so far
+### ✅ Completed
 
-* Core `rag_core` engine (embedding → search → prompt → LLM → result) proven via CLI demo.
-* Hierarchical JSON ingestion, schema validation, and optional chunk‑splitting.
-* Qdrant vector store adapter with async helpers.
-* OpenAI GPT‑4o & local Llama adapters.
-* Initial Redis‑RQ + FastAPI proof‑of‑concept.
-* CI‑ready PyTest suite with heavy mocking.
+*   Core `rag_core` engine: embedding → vector search → prompt construction → LLM interaction → result formatting.
+*   Hierarchical JSON ingestion with schema validation and optional chunk-splitting.
+*   Qdrant vector store adapter with asynchronous operations.
+*   OpenAI GPT-4o and local Llama LLM adapters.
+*   FastAPI web interface with Redis-RQ for asynchronous job processing.
+*   Comprehensive PyTest suite with extensive use of mocking for fast CI.
 
-### 🛠️ In progress
+### 🛠️ In Progress
 
-* **Orchestration decoupling** – Redis/RQ dependencies will be extracted from `rag_core`; the job queue becomes an *optional* outer service.
-* **Scenario templates** – ship more scoring rules, prompt recipes, and evaluation scripts.
+*   **Enhanced Orchestration:** Further decoupling of job queue dependencies from `rag_core` to allow easier integration with other queuing systems (e.g., Celery, RabbitMQ).
+*   **Scenario Management:** Developing more pre-defined scenario templates, including scoring rules, prompt recipes, and evaluation scripts.
 
-### 🗓️ Planned / help wanted
+### 🗓️ What's Next
 
-* Reference implementation of a lightweight `FastAPI` + `StarterQueue` repo demonstrating how to plug in your own Redis, Sidekiq, or Celery workers.
-* Async streaming helpers (WebSocket / SSE) for real‑time UIs.
-* Multilingual (JP/KR/EN) scam datasets & regulatory corpora.
-* Memory‑aware chunking + performance benchmarks.
-
----
-
-## 🤝 Contributing
-
-1. Fork → feature branch → Pull Request.
-2. Make sure `pytest` passes and `pre‑commit run --all-files` shows no lint errors.
-3. Add / update docs where applicable.
-
-We welcome new **datasets**, **scenario templates**, and **LLM adapters**!
+*   **Advanced Chunking:** Implementation of memory-aware and context-aware chunking strategies.
+*   **Performance Benchmarking:** Rigorous performance testing and optimization.
 
 ---
 
@@ -259,9 +289,8 @@ We welcome new **datasets**, **scenario templates**, and **LLM adapters**!
 
 Proprietary Software License Agreement
 
-Copyright (c) 2024 Institute for Information Industry (III), Cyber Security Technology Institute (CSTI)
+Copyright (c) 2025 Institute for Information Industry (III), Cyber Security Technology Institute (CSTI)
 
 All rights reserved. This software is proprietary and confidential. Unauthorized copying, modification, distribution, or use is strictly prohibited.
 
-> © 2024 Institute for Information Industry (III), Cyber Security Technology Institute (CSTI). Built with ❤️ in Taiwan.
-
+> © 2025 Institute for Information Industry (III), Cyber Security Technology Institute (CSTI).
