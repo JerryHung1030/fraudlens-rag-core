@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 ===============================================================================
 """
 
+
 class TextPreprocessor:
     """
     提供階層式 JSON 資料的 Flatten 與文字 Chunk 工具。

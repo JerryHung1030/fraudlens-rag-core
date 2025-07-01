@@ -23,17 +23,17 @@ os.environ["RAG_CONFIG_PATH"] = str(project_root / "config")
 
 import uvicorn
 import subprocess
-import signal
-import time
 from typing import Optional
 import threading
 from utils.logging import log_wrapper
+
 
 def print_output(pipe, prefix):
     """打印進程輸出"""
     for line in iter(pipe.readline, ''):
         print(f"{prefix}: {line.strip()}")
     pipe.close()
+
 
 def start_rq_worker():
     """啟動 RQ worker"""
@@ -81,6 +81,7 @@ def start_rq_worker():
         print(f"Failed to start RQ worker: {e}")
         raise
 
+
 def check_redis_connection():
     """檢查 Redis 連接"""
     try:
@@ -95,6 +96,7 @@ def check_redis_connection():
         print(f"Redis 連接失敗: {str(e)}")
         return False
 
+
 def cleanup(worker_process: Optional[subprocess.Popen]):
     """清理進程"""
     if worker_process:
@@ -102,6 +104,7 @@ def cleanup(worker_process: Optional[subprocess.Popen]):
         worker_process.terminate()
         worker_process.wait()
         log_wrapper.info("run_api", "cleanup", "worker 進程清理完成")
+
 
 def main():
     log_wrapper.info("run_api", "main", "開始啟動 API 服務")
@@ -133,5 +136,6 @@ def main():
         log_wrapper.info("run_api", "main", "API 服務已關閉")
         print("服務已關閉")
 
+
 if __name__ == "__main__":
-    main() 
+    main()

@@ -1,6 +1,5 @@
 # src/adapters/base_adapter.py
 from typing import AsyncGenerator
-from abc import ABC, abstractmethod
 from utils.logging import log_wrapper
 
 

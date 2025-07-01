@@ -9,9 +9,9 @@
 ===============================================================================
 """
 from typing import Dict, Any, Optional, List
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, validator
 from datetime import datetime
-from rag_core.domain.scenario import Scenario as CoreScenario
+
 
 class Scenario(BaseModel):
     direction: Optional[str] = "forward"
@@ -47,6 +47,7 @@ class Scenario(BaseModel):
             raise ValueError("cof_threshold must be a float between 0 and 1")
         return v
 
+
 class RAGRequest(BaseModel):
     """RAG 任務請求模型"""
     project_id: str
@@ -58,11 +59,13 @@ class RAGRequest(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+
 class RAGResponse(BaseModel):
     """RAG 任務回應模型"""
     job_id: str
     status: str
     created_at: datetime
+
 
 class JobStatus(BaseModel):
     """任務狀態模型"""
@@ -75,4 +78,4 @@ class JobStatus(BaseModel):
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None
-    failed_at: Optional[datetime] = None 
+    failed_at: Optional[datetime] = None

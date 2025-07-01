@@ -243,7 +243,7 @@ Content-Type: application/json
 }
 
 ### 立即查詢結果（應該會超時）
-GET {{baseUrl}}/rag/55b8f47f-e69b-424a-a1b3-1c291ef5ba52/result
+GET {{baseUrl}}/rag/cedc0bc0-5509-4ad7-a78c-e13c4474231a/result
 
 ### 正常請求測試
 POST {{baseUrl}}/rag

@@ -13,18 +13,17 @@ import sys
 import asyncio
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional, Set
+from typing import List, Optional
 from rq import Queue
 from redis import Redis
 import json
 from datetime import datetime, timedelta
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
 import re
 import time
 import requests
-
+import uvicorn
 from .models import RAGRequest, RAGResponse, JobStatus
 from .job_manager import job_manager
 from ..jobs.rag_job_runner import RAGJobRunner
@@ -56,12 +55,13 @@ redis_conn.delete(RUNNING_JOBS_KEY)
 log_wrapper.info("app", "startup", "已清理運行中的任務集合")
 
 # 添加任務過期時間設定（改為 1 分鐘）
-JOB_EXPIRY_HOURS = 5/60  # 1 分鐘
+JOB_EXPIRY_HOURS = 5 / 60  # 1 分鐘
 # 添加任務狀態查詢超時設定（改為 5 秒）
 JOB_STATUS_TIMEOUT = 5
 
 # 添加專案 ID 驗證正則表達式
 PROJECT_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
+
 
 class JobTracker:
     def __init__(self, max_concurrent_jobs: int = 1):
@@ -85,6 +85,7 @@ class JobTracker:
             running_jobs = redis_conn.smembers(RUNNING_JOBS_KEY)
             log_wrapper.info("JobTracker", "finish_job", f"Finished job {job_id}. Current running jobs: {len(running_jobs)}")
 
+
 # 創建任務追蹤器
 job_tracker = JobTracker(max_concurrent_jobs=1)
 
@@ -104,6 +105,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.on_event("startup")
 async def startup_event():
     """服務啟動時的事件處理"""
@@ -111,17 +113,19 @@ async def startup_event():
     redis_conn.delete(RUNNING_JOBS_KEY)
     log_wrapper.info("app", "startup_event", "服務啟動：已清理運行中的任務集合")
 
+
 def wait_for_qdrant_ready(url, max_retries=30, interval=2):
     for i in range(max_retries):
         try:
             resp = requests.get(f"{url}/healthz", timeout=2)
             if resp.status_code == 200:
-                print(f"Qdrant is ready after {i+1} tries")
+                print(f"Qdrant is ready after {i + 1} tries")
                 return
         except Exception as e:
-            print(f"Qdrant not ready, retry {i+1}: {e}")
+            print(f"Qdrant not ready, retry {i + 1}: {e}")
         time.sleep(interval)
     raise RuntimeError("Qdrant not ready after waiting")
+
 
 def setup_core():
     log_wrapper.info("app", "setup_core", "開始初始化核心元件")
@@ -179,8 +183,10 @@ def setup_core():
     log_wrapper.info("app", "setup_core", "核心元件初始化完成")
     return RAGJobRunner(vec_index, rag_engine)
 
+
 # 全域 RAG 執行器
 rag_runner = setup_core()
+
 
 def update_job_status(job_id: str, status: str, results: Optional[list] = None, error: Optional[str] = None):
     """更新任務狀態到 Redis"""
@@ -221,6 +227,7 @@ def update_job_status(job_id: str, status: str, results: Optional[list] = None, 
     except Exception as e:
         log_wrapper.error("app", "update_job_status", f"更新任務狀態失敗: {str(e)}")
 
+
 def process_rag_job(job_payload: dict) -> dict:
     """處理 RAG 任務的函數，用於 RQ worker"""
     job_id = None
@@ -234,7 +241,6 @@ def process_rag_job(job_payload: dict) -> dict:
         scenario = job_payload["scenario"]
         input_data = job_payload["input_data"]
         reference_data = job_payload["reference_data"]
-        callback_url = job_payload.get("callback_url")
         
         log_wrapper.info("process_rag_job", "start", f"開始處理任務 {job_id}，專案: {project_id}")
         
@@ -268,12 +274,14 @@ def process_rag_job(job_payload: dict) -> dict:
         log_wrapper.info("process_rag_job", "finish", f"Finished job {job_id}. Current running jobs: {len(redis_conn.smembers(RUNNING_JOBS_KEY))}")
         return {"error": str(e)}
 
+
 # 新增取得 client IP 的 function
 def get_client_ip(request: Request):
     x_forwarded_for = request.headers.get("x-forwarded-for")
     if x_forwarded_for:
         return x_forwarded_for.split(",")[0].strip()
     return request.client.host
+
 
 @app.post("/api/v1/rag", response_model=RAGResponse)
 async def create_rag_job(request: Request, body: RAGRequest) -> RAGResponse:
@@ -325,7 +333,7 @@ async def create_rag_job(request: Request, body: RAGRequest) -> RAGResponse:
             "failed_at": None
         }
         redis_conn.set(job_key, json.dumps(job_data))
-        job = rag_queue.enqueue(
+        rag_queue.enqueue(
             process_rag_job,
             json.dumps(job_payload, default=str),
             job_id=job_id
@@ -359,6 +367,7 @@ async def create_rag_job(request: Request, body: RAGRequest) -> RAGResponse:
                 "message_eng": "System problem, please contact administrator"
             }
         )
+
 
 @app.get("/api/v1/rag/{job_id}/status")
 async def get_job_status(request: Request, job_id: str) -> JSONResponse:
@@ -424,6 +433,7 @@ async def get_job_status(request: Request, job_id: str) -> JSONResponse:
             }
         )
 
+
 @app.get("/api/v1/rag/{job_id}/result")
 async def get_job_result(request: Request, job_id: str) -> JSONResponse:
     client_ip = get_client_ip(request)
@@ -487,6 +497,7 @@ async def get_job_result(request: Request, job_id: str) -> JSONResponse:
                 "message_eng": "System problem, please contact administrator"
             }
         )
+
 
 @app.get("/api/v1/rag", response_model=List[JobStatus])
 async def list_jobs(
@@ -578,6 +589,7 @@ async def list_jobs(
             }
         )
 
+
 @app.delete("/api/v1/rag/{job_id}")
 async def delete_job(job_id: str):
     """刪除任務"""
@@ -604,6 +616,7 @@ async def delete_job(job_id: str):
                 "message_eng": "System problem, please contact administrator"
             }
         )
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -633,5 +646,4 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 

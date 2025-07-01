@@ -12,14 +12,15 @@ import click
 import json
 import requests
 from typing import Optional
-from pathlib import Path
 
 API_BASE_URL = "http://localhost:8000/api/v1"
 
+
 @click.group()
 def cli():
-    """RAG Core CLI - A command line interface for RAG Core API"""
+    """rag-core-x CLI - A command line interface for rag-core-x API"""
     pass
+
 
 @cli.command()
 @click.option('--project-id', required=True, help='Project ID for the RAG task')
@@ -64,6 +65,7 @@ def rag(project_id: str, input_file: str, reference_file: str, direction: str, r
     except Exception as e:
         click.echo(f"Unexpected error: {str(e)}", err=True)
 
+
 @cli.command()
 @click.argument('job_id')
 def status(job_id: str):
@@ -76,6 +78,7 @@ def status(job_id: str):
     except requests.exceptions.RequestException as e:
         click.echo(f"Error checking status: {str(e)}", err=True)
 
+
 @cli.command()
 @click.argument('job_id')
 def result(job_id: str):
@@ -87,6 +90,7 @@ def result(job_id: str):
         click.echo(json.dumps(result, indent=2, ensure_ascii=False))
     except requests.exceptions.RequestException as e:
         click.echo(f"Error getting results: {str(e)}", err=True)
+
 
 @cli.command()
 @click.option('--project-id', help='Filter tasks by project ID')
@@ -107,5 +111,6 @@ def list_tasks(project_id: Optional[str], clean_old: bool):
     except requests.exceptions.RequestException as e:
         click.echo(f"Error listing tasks: {str(e)}", err=True)
 
+
 if __name__ == '__main__':
-    cli() 
+    cli()

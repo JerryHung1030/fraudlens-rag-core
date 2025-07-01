@@ -1,4 +1,4 @@
-# RAG Core X
+# rag-core-x
 
 > **A production-ready Retrieval-Augmented Generation service** that **schedules**, **stores**, and **serves** document-aware intelligence through a robust set of Web APIs. Built to power multiple downstream products such as **Fraudlens** and **Relulens-AI** etc.
 
@@ -90,7 +90,7 @@ sequenceDiagram
 
 ## 🚀 Quick Start
 
-The fastest way to get RAG Core X up and running is by using Docker Compose. This method handles the installation and launch of all necessary services, including Qdrant, Redis, and the API.
+The fastest way to get rag-core-x up and running is by using Docker Compose. This method handles the installation and launch of all necessary services, including Qdrant, Redis, and the API.
 
 ### Prerequisites
 
@@ -118,7 +118,7 @@ The fastest way to get RAG Core X up and running is by using Docker Compose. Thi
 1.  **Clone the repository (if you haven't already):**
     ```bash
     git clone <repository_url>
-    cd rag-core
+    cd rag-core-x
     ```
 
 2.  **Build and run with Docker Compose:**
@@ -136,7 +136,7 @@ The API will be available at `http://localhost:8000` by default. You can check t
 The project is organized into several key directories:
 
 ```text
-rag-core/
+rag-core-x/
 ├── .github/                    # GitHub Actions workflows (e.g., CI)
 ├── docs/                       # Documentation, API specifications (e.g., RAGCore-X_api.xlsx)
 ├── src/                        # Python source root
@@ -169,7 +169,7 @@ rag-core/
 
 ## ⚙️ Configuration
 
-RAG Core X employs a layered configuration system, prioritizing settings as follows:
+rag-core-x employs a layered configuration system, prioritizing settings as follows:
 
 1.  **Environment Variables** (highest priority)
 2.  **Local Configuration File** (`settings.local.yml`)

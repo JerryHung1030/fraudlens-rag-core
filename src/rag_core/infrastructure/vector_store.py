@@ -12,12 +12,9 @@ from typing import Dict, Any, List, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import uuid
-import json
-from datetime import datetime
 
 from qdrant_client import QdrantClient, models
 from qdrant_client.models import PointStruct, FieldCondition, MatchValue
-from qdrant_client.http.exceptions import UnexpectedResponse
 from utils.logging import log_wrapper
 
 from rag_core.domain.schema_checker import DataStructureChecker

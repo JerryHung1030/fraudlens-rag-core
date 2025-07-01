@@ -11,9 +11,10 @@
 import asyncio
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from .models import JobStatus
 from utils.logging import log_wrapper
+
 
 class JobManager:
     """RAG 任務管理器"""
@@ -89,5 +90,6 @@ class JobManager:
                 log_wrapper.info("JobManager", "list_jobs", f"列出所有任務，共 {len(jobs)} 個")
             return jobs
 
+
 # 全域任務管理器實例
-job_manager = JobManager() 
+job_manager = JobManager()
